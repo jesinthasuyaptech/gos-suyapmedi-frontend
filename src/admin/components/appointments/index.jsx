@@ -25,7 +25,7 @@ import "../styles/Loader.css";
 import { text } from "@fortawesome/fontawesome-svg-core";
 import { FaTrash } from "react-icons/fa";
 import noDataImage from "../../assets/img/nodata/nodata_image.png";
-import { ArrowRight, Eye, User, Cake, Clock, Calendar, Thermometer, HeartPulse, Droplet, Ruler, Weight, Scale, Activity, ShieldCheck, Candy, Stethoscope, Star, UserCheck, BriefcaseMedical, IdCard, CandyOff, Users, MapPin, PrinterIcon, MessageCircle, Gauge, EyeOff } from "lucide-react";
+import { ArrowRight, Eye, User, Cake, Clock, Calendar, Thermometer, HeartPulse, Droplet, Ruler, Weight, Scale, Activity, ShieldCheck, Candy, Stethoscope, Star, UserCheck, BriefcaseMedical, IdCard, CandyOff, Users, MapPin, PrinterIcon, MessageCircle, Gauge, EyeOff, Trash2} from "lucide-react";
 import bookingaudio from "../../assets/audio/booking_audio.wav";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -6476,6 +6476,27 @@ const deleteFile = async (file) => {
 };
 
 
+const handlePrint = (url) => {
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Print Image</title>
+        <style>
+          body { text-align: center; margin: 0; }
+          img { max-width: 100%; max-height: 100vh; }
+        </style>
+      </head>
+      <body>
+        <img src="${url}" onload="window.print(); window.close();" />
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+};
+
+
+
   const handleAppointmentSubmit = async (e) => {
      setLoading(true);
   e.preventDefault();
@@ -6535,14 +6556,22 @@ const fetchUploadedFiles = async () => {
     const response = await axios.get(`${var_api}cash_sheet/list/${hospital_id}/${selectedAppointment.id}`);
     const data = response.data.data;
 
-    const formattedFiles = data.map(file => ({
+    console.log("casedata", data);
+
+    const formattedFiles = data.map(file => {
+  const createdAt = new Date(file.created_at); // assuming API returns created_at in ISO format
+  const formattedDate = createdAt.toLocaleDateString('en-GB'); // dd/mm/yyyy
+
+  return {
       id: file.cash_sheet_id,
       name: file.image_url.split('/').pop(),
       size: 0, // You can get size if needed
       extension: file.image_url.split('.').pop(),
       url: file.image_url,
       key: file.image_url.split('.amazonaws.com/')[1],
-    }));
+      created_at: formattedDate.replace(/\//g, "-") // converts dd/mm/yyyy → dd-mm-yyyy
+    };
+});
 
     setUploadedFiles(formattedFiles);
   } catch (error) {
@@ -6645,6 +6674,7 @@ const renderSection = (sectionData, label) => {
   if (!sectionData) return <p>No data for {label}</p>;
 
   console.log("lable", label);
+  
   
   return (
     <div>
@@ -6791,6 +6821,13 @@ const handleDiscountSave = async (tabKey) => {
 
 
 
+  const calculateOverallGrandTotal = () => {
+  const tabs = ['op', 'scan', 'investigation', 'review'];
+  return tabs.reduce((total, tab) => {
+    const { grandTotal } = calculateTabTotals(tab); // your existing function
+    return total + grandTotal;
+  }, 0);
+};
 
   return (
     <>
@@ -7242,7 +7279,7 @@ const handleDiscountSave = async (tabKey) => {
                               </span>
 
                               
- {apt?.private_apt_id && apt.private_apt_id > 0 && (
+ {/* {apt?.private_apt_id && apt.private_apt_id > 0 && (
     <div style={{
       // position: "absolute",
       // top: "10px",
@@ -7262,7 +7299,7 @@ const handleDiscountSave = async (tabKey) => {
       <i className="fe fe-lock" style={{ fontSize: "10px" }} />
       <span>Private</span>
     </div>
-  )}
+  )} */}
                             </div>
 
                             </div>
@@ -7494,15 +7531,14 @@ const handleDiscountSave = async (tabKey) => {
                             </p>
                           </div>
                         </div>
-                        <hr/>
+                        {/* <hr/> */}
 
-<div className="start-appointment-set">
+{/* <div className="start-appointment-set">
   <div className="form-bg-title">
     <h5>Appointment Details</h5>
   </div>
 
   <div className="row g-3">
-    {/* Appointment Date */}
     <div className="col-xl-3 col-md-6">
       <label className="mt-2 fw-semibold d-flex align-items-center gap-2">
         <FaCalendarAlt color="#0dcaf0" />
@@ -7510,7 +7546,7 @@ const handleDiscountSave = async (tabKey) => {
       </label>
     </div>
 
-    {/* Appointment Slot */}
+  
     <div className="col-xl-3 col-md-6">
       <label className="mt-2 fw-semibold d-flex align-items-center gap-2">
         <FaClock color="#000" />
@@ -7518,7 +7554,7 @@ const handleDiscountSave = async (tabKey) => {
       </label>
     </div>
 
-    {/* Remarks */}
+  
     <div className="col-xl-3 col-md-6">
       <label className="mt-2 fw-semibold d-flex align-items-center gap-2">
         <FaStickyNote color="#198754" />
@@ -7532,7 +7568,7 @@ const handleDiscountSave = async (tabKey) => {
       </label>
     </div>
 
-    {/* Status */}
+   
     <div className="col-xl-3 col-md-6">
   <label className="mt-2 fw-semibold d-flex align-items-center gap-2">
     <FaInfoCircle color="#6c757d" />
@@ -7562,7 +7598,7 @@ const handleDiscountSave = async (tabKey) => {
   </label>
 </div>
   </div>
-</div>
+</div> */}
                        
                       </div>
 
@@ -9667,7 +9703,7 @@ const handleDiscountSave = async (tabKey) => {
 </Link>
             </li>
 
-              <li className="nav-item">
+             {/*  <li className="nav-item">
             <Link
   className={`nav-link ${activeTab === "appointments" ? "active" : ""}`}
   onClick={() => setActiveTab("appointments")}
@@ -9675,7 +9711,7 @@ const handleDiscountSave = async (tabKey) => {
 >
   Appointments
 </Link>
-            </li>
+            </li> */}
             
 
             {/* {
@@ -9693,9 +9729,16 @@ const handleDiscountSave = async (tabKey) => {
           </ul>
 
           <br />
+          
            {
             (selectedAppointment?.status == 0 || selectedAppointment?.status == 1 || selectedAppointment?.status == 2) && (
-              <div style={{ textAlign: "right", marginTop:"10px" }}>
+              <div  className="d-flex justify-content-between align-items-center"  style={{ marginTop:"10px" }}>
+                   <h5>
+      Overall Grand Total:{" "}
+      <strong style={{color:"green"}}>₹ {calculateOverallGrandTotal().toFixed(2)}</strong>
+    </h5>
+       {/* Right side - Buttons */}
+      <div>
                 <button
                     type="button"
                     className="btn btn-secondary"
@@ -9707,6 +9750,7 @@ const handleDiscountSave = async (tabKey) => {
                     className="btn btn-primary" onClick={handleEndSession}>
                   End Session
                 </button>
+                   </div>
               </div>
             )}
             <br/>
@@ -9939,41 +9983,56 @@ const handleDiscountSave = async (tabKey) => {
       )}
 
       {/* Uploaded Files List */}
-      {uploadedFiles.length > 0 && (
-        <div className="uploaded-files mt-4">
-          <h6>Uploaded Documents</h6>
-          <div className="file-list">
-            {uploadedFiles.map((file, index) => (
-              <div key={index}  className="d-flex justify-content-between align-items-center border rounded p-2 mb-2 file-item">
-                <div className="file-info">
-                  <FileIcon extension={file.extension} />
-                  <div className="file-details">
-                    <span className="file-name">{file.name}</span>
-                    {/* <span className="file-size">{formatFileSize(file.size)}</span> */}
-                    <span className="file-status text-success">
-                      <CheckCircleIcon /> Uploaded
-                    </span>
-                  </div>
-                </div>
-                <div className="file-actions">
-                 <button 
-  className="btn btn-sm btn-outline-primary"
-  onClick={() => handlePreview(file.url)}  // Pass file.url directly
->
-  <EyeIcon /> View
-</button>
-                  <button 
-                    className="btn btn-sm btn-outline-danger ml-2"
+    {uploadedFiles.length > 0 && (
+  <div className="uploaded-files mt-4">
+    <h6>Uploaded Documents</h6>
+    <div className="row">
+      {uploadedFiles.map((file, index) => (
+        <div key={index} className="col-md-4 mb-3">
+          <div className="card h-100 shadow-sm">
+            <div className="card-body p-2 d-flex flex-column">
+              {/* Top row: Date + Buttons */}
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <small className="text-muted">{file.created_at}</small>
+                <div>
+                  <button
+                    className="btn btn-sm btn-outline-primary me-1"
+                    onClick={() => handlePreview(file.url)}
+                  >
+                      <Eye size={16} />
+                  </button>
+                  <button
+                    className="btn btn-sm btn-outline-danger me-1"
                     onClick={() => deleteFile(file)}
                   >
-                    <TrashIcon /> Delete
+                   <Trash2 size={16} />
+                  </button>
+                   <button
+                    className="btn btn-sm btn-outline-secondary me-1"
+                    onClick={() => handlePrint(file.url)}
+                  >
+                    <PrinterIcon size={16} />
                   </button>
                 </div>
               </div>
-            ))}
+
+              {/* Image */}
+              <div className="flex-grow-1 d-flex align-items-center justify-content-center border rounded overflow-hidden">
+                <img
+                  src={file.url}
+                  alt={file.name}
+                  className="img-fluid"
+                  style={{ maxHeight: "200px", objectFit: "contain" }}
+                />
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      ))}
+    </div>
+  </div>
+)}
+
     </div>
   </div>
 )}

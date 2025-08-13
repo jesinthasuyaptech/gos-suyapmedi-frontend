@@ -708,7 +708,11 @@ const handleFormSubmit = async (values) => {
     }
 
     const formData = new FormData();
-    const { profile_image, ...restValues } = values;
+    const { profile_image, first_name, last_name, ...restValues } = values;
+
+     // 🆕 Combine first & last name
+    const fullName = `${first_name || ""} ${last_name || ""}`.trim();
+    formData.append("name", fullName);
 
     // 1. Append all non-file fields
     Object.entries(restValues).forEach(([key, value]) => {
@@ -786,9 +790,6 @@ const handleFormSubmit = async (values) => {
   }
 };
 
-
-
-  
 
   const handleGetpatientAptistotry = async (id) => {
     try {
@@ -1721,8 +1722,7 @@ const handleFormSubmit = async (values) => {
 
 
 
-      {/* Modal for Add / Edit */}
-      <Modal
+ <Modal
       title={editData ? "Edit Patient" : "Add New Patient"}
       visible={isModalVisible}
       onCancel={handleModalClose}
@@ -1740,7 +1740,269 @@ const handleFormSubmit = async (values) => {
       mobile_no: customerMobile || "", // Pre-fill the mobile_no field with customerMobile if available
     }}
   >
-    {/* Name and Profile Image in one row */}
+  
+
+    <Row gutter={16}>
+      <Col span={12}>
+        <Form.Item
+          label="First Name"
+          name="name"
+          rules={[{ required: true, message: "Please input the name!" }]}
+          style={{ display: 'flex', alignItems: 'center' }}
+        >
+          <input
+            className="form-control"
+            placeholder="Enter your name"
+            type="text"
+            style={{ width: "215px" }} // Adjust the width as needed
+          />
+        </Form.Item>
+      </Col>
+
+      <Col span={12}>
+        <Form.Item
+          label="Last Name"
+          name="name"
+          rules={[{ required: true, message: "Please input the name!" }]}
+          style={{ display: 'flex', alignItems: 'center' }}
+        >
+          <input
+            className="form-control"
+            placeholder="Enter your name"
+            type="text"
+            style={{ width: "215px" }} // Adjust the width as needed
+          />
+        </Form.Item>
+      </Col>
+     
+    </Row>
+     
+
+    {/* Age and Dob in one row */}
+    <Row gutter={16}>
+
+       <Col span={12}>
+        <Form.Item
+          label="Mobile No"
+          name="mobile_no"
+          rules={[{ required: true, message: "Please input the mobile_no!" }]}
+          style={{ display: 'flex', alignItems: 'center' }}
+        >
+          <input
+            className="form-control"
+            type="text"
+            maxLength="10"
+            style={{ width: "180px" }}
+            placeholder="Enter 10-digit number"
+            onKeyPress={(e) => {
+              if (!/[0-9]/.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
+          />
+        </Form.Item>
+      </Col>
+
+      <Col span={12}>
+        <Form.Item
+          label="Age"
+          name="age"
+          initialValue={age} // Set calculated age as initial value
+          rules={[{ required: true, message: "Please input the age!" }]}
+          style={{ display: 'flex', alignItems: 'center' }}
+        >
+          <input
+            value={age || ""}
+            onChange={(e) => setAge(e.target.value)}
+            className="form-control"
+            placeholder="Enter your name"
+            type="text"
+            style={{ width: "230px" }} // Adjust the width as needed
+          />
+        </Form.Item>
+      </Col>
+  </Row>
+
+   <Row gutter={16}>
+       <Col span={12}>
+        <Form.Item
+          label="Gender"
+          name="gender"
+          rules={[{ required: true, message: "Please select the gender!" }]}
+          style={{ display: 'flex', alignItems: 'center' }}
+        >
+          <Radio.Group style={{ marginLeft: '10px' }}> {/* Align input to the left */}
+            <Radio value="Male">Male</Radio>
+            <Radio value="Female">Female</Radio>
+            <Radio value="Other">Other</Radio>
+          </Radio.Group>
+        </Form.Item>
+      </Col>
+    </Row>
+
+    {/* Submit and Reset Buttons */}
+    <Form.Item>
+      <div style={{ textAlign: "center", marginTop: "20px" }}>
+        <button type="submit" className="btn btn-primary mx-1">
+          {editData ? "Update" : "Submit"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-danger"
+          onClick={editData ? closeModal : handleReset}
+        >
+          {editData ? "Cancel" : "Reset"}
+        </button>
+      </div>
+    </Form.Item>
+  </Form>
+)}
+          
+        </>
+      ) : (
+        // Add New Patient Form
+       <Form
+  form={form}
+  onFinish={handleFormSubmit}
+  initialValues={{
+    mobile_no: customerMobile || "",
+  }}
+> 
+    {/* Name and Profile Image */}
+    <Row gutter={16}>
+      <Col span={12}>
+        <Form.Item
+          label="First Name"
+          name="first_name"
+          rules={[{ required: true, message: "Please enter First name" }]}
+        >
+          <Input 
+            className="form-control" 
+            placeholder="Enter first name" 
+            style={{ width: '100%' }}
+          />
+        </Form.Item>
+      </Col>
+
+       <Col span={12}>
+        <Form.Item
+          label="Last Name"
+          name="last_name"
+          rules={[{ required: false, message: "Please enter Last name" }]}
+        >
+          <Input 
+            className="form-control" 
+            placeholder="Enter last name" 
+            style={{ width: '100%' }}
+          />
+        </Form.Item>
+      </Col>
+      </Row> 
+
+ <Row gutter={16}>
+      <Col span={12}>
+        <Form.Item
+          label="Mobile No"
+          name="mobile_no"
+          rules={[{ 
+            required: true, 
+            message: "Please enter mobile number",
+            len: 10,
+            pattern: /^[0-9]+$/,
+          }]}
+        >
+          <Input
+            className="form-control"
+            placeholder="Enter 10-digit mobile number"
+            maxLength={10}
+            style={{ width: '100%' }}
+          />
+        </Form.Item>
+      </Col>
+
+       <Col span={12}>
+   <Form.Item
+          label="Age"
+          name="age"
+          initialValue={age} // Set calculated age as initial value
+          rules={[{ required: false, message: "Please input the age!" }]}
+        >
+       <Input
+  value={age || ""}
+  onChange={(e) => setAge(e.target.value)}
+  className="form-control"
+  style={{ width: '240px' }} // Adjust the width as needed
+/>
+        </Form.Item>
+  </Col>
+
+     
+    </Row>
+
+
+     {/* Contact Information */}
+    <Row gutter={16}>
+
+       
+       <Col span={12}>
+        <Form.Item
+          label="Gender"
+          name="gender"
+          rules={[{ required: false, message: "Please select gender" }]}
+        >
+          <Radio.Group>
+            <Radio value="Male">Male</Radio>
+            <Radio value="Female">Female</Radio>
+            <Radio value="Other">Other</Radio>
+          </Radio.Group>
+        </Form.Item>
+      </Col>
+      
+    </Row>
+
+
+  {/* Form Actions */}
+  <Form.Item style={{ textAlign: 'center', marginTop: '24px' }}>
+    <Space>
+      <Button type="primary" htmlType="submit" size="large">
+        {editData ? "Update" : "Submit"}
+      </Button>
+      <Button
+        htmlType="button"
+        onClick={editData ? closeModal : handleReset}
+        size="large"
+      >
+        {editData ? "Cancel" : "Reset"}
+      </Button>
+    </Space>
+  </Form.Item>
+</Form>
+      )}
+    </Modal>
+    
+
+
+
+      {/* Modal for Add / Edit */}
+      {/* <Modal
+      title={editData ? "Edit Patient" : "Add New Patient"}
+      visible={isModalVisible}
+      onCancel={handleModalClose}
+      footer={null}
+      width={800}
+    >
+      {editData ? (
+        // Edit Patient Form
+        <>
+     {activeTab === "EditPatient" && (
+  <Form
+    form={form}
+    onFinish={handleFormSubmit}
+    initialValues={{
+      mobile_no: customerMobile || "", // Pre-fill the mobile_no field with customerMobile if available
+    }}
+  >
+  
    <div style={{ marginBottom: '24px', borderBottom: '1px solid #f0f0f0', paddingBottom: '16px' }}>
     <Row gutter={16}>
       <Col span={12}>
@@ -1758,6 +2020,23 @@ const handleFormSubmit = async (values) => {
           />
         </Form.Item>
       </Col>
+
+      <Col span={12}>
+        <Form.Item
+          label="Name"
+          name="name"
+          rules={[{ required: true, message: "Please input the name!" }]}
+          style={{ display: 'flex', alignItems: 'center' }}
+        >
+          <input
+            className="form-control"
+            placeholder="Enter your name"
+            type="text"
+            style={{ width: "215px" }} // Adjust the width as needed
+          />
+        </Form.Item>
+      </Col>
+      
       <Col span={12}>
         <Form.Item
           label="Mobile No"
@@ -1782,14 +2061,10 @@ const handleFormSubmit = async (values) => {
      
     </Row>
       </div>
-
-
-       {/* Contact Details Section */}
+ 
   <div style={{ marginBottom: '24px', borderBottom: '1px solid #f0f0f0', paddingBottom: '16px' }}>
     <h4>Other Details</h4>
 
-
-    {/* Mobile and Secondary Mobile in one row */}
     <Row gutter={16}>
       <Col span={12}>
         <Form.Item
@@ -1830,7 +2105,6 @@ const handleFormSubmit = async (values) => {
       </Col>
     </Row>
 
-    {/* Age and Dob in one row */}
     <Row gutter={16}>
       <Col span={12}>
         <Form.Item
@@ -1877,7 +2151,7 @@ const handleFormSubmit = async (values) => {
       </Col>
     </Row>
 
-    {/* Gender in one row */}
+   
     <Row gutter={16}>
       <Col span={12}>
         <Form.Item
@@ -1886,7 +2160,7 @@ const handleFormSubmit = async (values) => {
           rules={[{ required: true, message: "Please select the gender!" }]}
           style={{ display: 'flex', alignItems: 'center' }}
         >
-          <Radio.Group style={{ marginLeft: '10px' }}> {/* Align input to the left */}
+          <Radio.Group style={{ marginLeft: '10px' }}> 
             <Radio value="Male">Male</Radio>
             <Radio value="Female">Female</Radio>
             <Radio value="Other">Other</Radio>
@@ -1914,7 +2188,7 @@ const handleFormSubmit = async (values) => {
       </Col>
     </Row>
 
-    {/* Blood Group and City in one row */}
+   
     <Row gutter={16}>
       <Col span={12}>
         <Form.Item
@@ -1958,7 +2232,7 @@ const handleFormSubmit = async (values) => {
       </Col>
     </Row>
 
-    {/* Full Address and Upload CSV in one row */}
+   
     <Row gutter={16}>
       <Col span={12}>
         <Form.Item
@@ -1996,7 +2270,7 @@ const handleFormSubmit = async (values) => {
         </Form.Item>
       </Col>
     </Row>
-    </div>
+    </div> */}
 
     {/* Eye Examination Section */}
     {/* <Row gutter={16}>
@@ -2127,8 +2401,8 @@ const handleFormSubmit = async (values) => {
       </Col>
     } */}
 
-    {/* Submit and Reset Buttons */}
-    <Form.Item>
+   
+    {/* <Form.Item>
       <div style={{ textAlign: "center", marginTop: "20px" }}>
         <button type="submit" className="btn btn-primary mx-1">
           {editData ? "Update" : "Submit"}
@@ -2155,11 +2429,9 @@ const handleFormSubmit = async (values) => {
     mobile_no: customerMobile || "",
   }}
 >
-  {/* Personal Information Section */}
+
   <div style={{ marginBottom: '24px', borderBottom: '1px solid #f0f0f0', paddingBottom: '16px' }}>
-    {/* <h3>Personal Information</h3> */}
-    
-    {/* Name and Profile Image */}
+  
     <Row gutter={16}>
       <Col span={12}>
         <Form.Item
@@ -2199,11 +2471,11 @@ const handleFormSubmit = async (values) => {
    
   </div>
 
-  {/* Contact Details Section */}
+
   <div style={{ marginBottom: '24px', borderBottom: '1px solid #f0f0f0', paddingBottom: '16px' }}>
     <h4>Other Details</h4>
 
-     {/* Contact Information */}
+
     <Row gutter={16}>
        <Col span={12}>
         <Form.Item
@@ -2233,7 +2505,7 @@ const handleFormSubmit = async (values) => {
       </Col>
     </Row>
 
-    {/* Age and DOB */}
+ 
    <Row gutter={16}>
   <Col span={12}>
    <Form.Item
@@ -2347,7 +2619,7 @@ const handleFormSubmit = async (values) => {
   </div>
 
   {/* Eye Examination Section */}
-  <div style={{ marginBottom: '24px' }}>
+  {/* <div style={{ marginBottom: '24px' }}>
     <h4>Eye Examination Details</h4>
     
     <Row gutter={16}>
@@ -2426,7 +2698,7 @@ const handleFormSubmit = async (values) => {
     </Form.Item>
   </div>
 
-  {/* Form Actions */}
+ 
   <Form.Item style={{ textAlign: 'center', marginTop: '24px' }}>
     <Space>
       <Button type="primary" htmlType="submit" size="large">
@@ -2444,7 +2716,7 @@ const handleFormSubmit = async (values) => {
 </Form>
       )}
     </Modal>
-    
+     */}
 
 
       {/* Delete Confirmation Modal */}

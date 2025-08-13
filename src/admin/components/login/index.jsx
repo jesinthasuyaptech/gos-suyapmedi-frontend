@@ -180,8 +180,8 @@ const Login = () => {
             history.push("/admin/patientdetails");
           } else {
             history.push("/admin");
-            // fetchSettingsList(31, result.user.token);
-             fetchSettingsList(18, result.user.token);
+            fetchSettingsList(31, result.user.token);
+            //  fetchSettingsList(18, result.user.token);
           }
         // } else {
         //   setModalMessage("Unauthorized Access: Your role does not have permission to log in.");
