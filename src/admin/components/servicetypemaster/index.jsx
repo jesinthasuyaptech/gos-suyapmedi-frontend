@@ -427,6 +427,8 @@ const applyFilters = (searchText, typeFilter) => {
           return "Investigation";
         } else if (text === 3) {
           return "Review";
+        } else if (text === 4) {
+          return "Laser";
         }
         return "-"; // Return '-' if the value is undefined or not 0 or 1
       },
@@ -580,6 +582,7 @@ const applyFilters = (searchText, typeFilter) => {
   <option value="1">Scan</option>
   <option value="2">Investigation</option>
   <option value="3">Review</option>
+  <option value="4">Laser</option>
 </select>
 
 </div>
@@ -677,6 +680,7 @@ const applyFilters = (searchText, typeFilter) => {
     <option value={1}>Scan</option>
     <option value={2}>Investigation</option>
     <option value={3}>Reviews</option>
+    <option value={4}>Laser</option>
   </select>
 </Form.Item>
 
