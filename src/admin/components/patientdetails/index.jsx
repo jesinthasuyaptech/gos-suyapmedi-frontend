@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import SidebarNav from "../sidebar";
 import { Table, Button, Modal, Form, Input, Radio, Upload, message, Checkbox, Row, Col, Switch, notification, Space } from "antd";
+import { Tabs } from 'antd';
 import { itemRender, onShowSizeChange } from "../paginationfunction";
 import { Link } from "react-router-dom";
 import moment from "moment"; // For handling date format
@@ -17,6 +18,7 @@ import "../styles/Loader.css";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import axios from "axios";
 import Select from "react-select";
+import {PrinterIcon, Eye, Trash2} from 'lucide-react';
 
 const Patientdetails = () => {
   const [data, setData] = useState([]);
@@ -44,15 +46,21 @@ const Patientdetails = () => {
   const [isOpenPatientServiceHistory, setIsOpenPatientServiceHistory] = useState(false);
   const [isOpenpatientdetails,setisOpenpatientdetails] = useState(false);
   const [PatientServicedetails,setPatientServicedetails] = useState([]);
-  const appointmentPrefix = localStorage.getItem("admin_appointment_prefix");
+  // const appointmentPrefix = localStorage.getItem("admin_appointment_prefix");
+  const appointmentPrefix = "GOS";
   const [patientAptHistory, setPatientAptHistory] = useState([]);
   const [patientdetails, setpatientdetails] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const[selectedPatient, setselectedPatient]= useState(null);
- const [selectedDate, setSelectedDate] = useState('');
- const [age, setAge] = useState(null);
-   const [isModalInsta, setIsModalInsta] = useState(false);
-   const [isModalpop, setIsModalpop] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [age, setAge] = useState(null);
+  const [isModalInsta, setIsModalInsta] = useState(false);
+  const [isModalpop, setIsModalpop] = useState(false);
+  const [dayTimings, setDayTimings] = useState(null);
+  const [modefiltereddata, setmodeFilteredData] = useState([]);
+  const [isPayModalVisible, setIsPayModalVisible] = useState(false);
+  const [paymode, setpaymode] = useState([]);
+  const [paymentDetails, setPaymentDetails] = useState([]);
   const [switchStates, setSwitchStates] = useState({
     asthma: false,
     diabetes: false,
@@ -70,37 +78,37 @@ const Patientdetails = () => {
   const [otherReferalMobile, setOtherReferalMobile] = useState("");
   const [referalPersonId, setReferalPersonId] = useState(null);
   const [referalPersons, setReferalPersons] = useState([]);
+  const [invoice, setInvoice] = useState([]);
+  const [invoicefiltereddata, setInvoicefiltereddata] = useState([]);
   console.log ("hariiiiii",localStorage.getItem ("admin_patient_prefix"));
   const options = [
-    { value: 7, label: "All" },
     { value: 0, label: "upcoming" },
-    { value: 1, label: "Reached Hospital" },
     { value: 2, label: "Inprogress" },
-    { value: 3, label: "Completed" },
-    { value: 4, label: "Cancel by Hospital" },
-    { value: 5, label: "Cancel by Patient" },
-    { value: 6, label: "Revisit For Report" },
+    { value: 3, label: "Completed" }
   ];
 
 
-
+  const [isEndSessionModalVisibleEdit, setIsEndSessionModalVisibleEdit] = useState(false);
   const[patientname, setPatientname]=useState(null);
   const[patientid, setPatientid]=useState(null);
   const [installDetails, setInstallDetails] = useState(null);
+  const [calculatatedpaymode, setCalculatatedpaymode] = useState([]);
   const hospital_private = localStorage.getItem('is_private');
 
   const handleModalOpenDOB = () => setIsModalOpen(true);
   const handleModalCloseDOB = () => setIsModalOpen(false);
-
+  const [existingServices, setExistingServices] = useState(null);
   const handleMonthChange = (value) => setSelectedMonth(value);
 
   const [showCsvUpload, setShowCsvUpload] = React.useState(false);
   const [isEndSessionModalVisible, setIsEndSessionModalVisible] = useState(false);
   const [csvFile, setCsvFile] = React.useState(null);
+  const { TabPane } = Tabs;
+  const [totalPayAmount, setTotalPayAmount] = useState(0);
 
   const totalAppointments = patientAptHistory ? patientAptHistory.length : 0;
 
-const totalAmount = patientAptHistory
+  const totalAmount = patientAptHistory
   ? patientAptHistory.reduce((sum, record) => sum + (parseFloat(record.bill_amount) || 0), 0)
   : 0;
 
@@ -132,8 +140,11 @@ const totalAmount = patientAptHistory
 
     const [activeTab, setActiveTab] = useState("op");
     const [isDragging, setIsDragging] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState([]);
     const [uploadedFiles, setUploadedFiles] = useState([]);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const sectionTypes = ['op', 'scan', 'investigation', 'review', 'laser'];
+    const [invoiceData, setInvoiceData] = useState(null);
     
     // Helper function to create empty service row
     const createEmptyServiceRow = (serviceType) => ({
@@ -184,7 +195,7 @@ const totalAmount = patientAptHistory
     
     //for calculate the overall count
   const calculateOverallGrandTotal = () => {
-  const tabs = ['op', 'scan', 'investigation', 'review'];
+  const tabs = ['op', 'scan', 'investigation', 'review', 'laser'];
   return tabs.reduce((total, tab) => {
     const { grandTotal } = calculateTabTotals(tab); // your existing function
     return total + grandTotal;
@@ -210,9 +221,14 @@ const handleAddNewRow = () => {
   }));
 };
 const hospital_id = localStorage.getItem("hospital_id");
+const [s3Config, setS3Config] = useState({
+  bucketName: '',
+  region: '',
+  folderPath: '',
+});
 
 // Handle delete row for current tab
-const handleDeleteRow = (rowId) => {
+ const handleDeleteRow = (rowId) => {
   const currentRows = getCurrentRows();
   if (currentRows.length <= 1) {
     notification.warning({
@@ -228,7 +244,7 @@ const handleDeleteRow = (rowId) => {
   }));
 };
 
- const handleSubmitNewInvoiceDetail = async () => {
+  const handleSubmitNewInvoiceDetail = async () => {
     setLoading(true);
     // Get the last index of rows
     const lastRow = rows[rows.length - 1];
@@ -286,7 +302,172 @@ const handleDeleteRow = (rowId) => {
     setRows((prevRows) => prevRows.slice(0, -1));
     console.log("Updated Rows:", rows);
     setIsEnable(false);
-  }
+    };
+
+     //get doctors list by hospital id
+      const fetchSlotMaster = async () => {
+          const token = localStorage.getItem("token");
+        setLoading(true);
+        try {
+          const response = await fetch(`${var_api}gos-slot/getby-act-slots/${hospital_id}`, {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `${token}`, // Add the 'Bearer ' prefix before the token
+            },
+          });
+    
+          if (response.status === 401) {
+            // history.push("/template/login");
+            return;
+          }
+    
+          if (!response.ok) throw new Error("Failed to fetch data");
+          const result = await response.json();
+          console.log("tt", result[0]);
+          setDayTimings(result[0]);
+          setLoading(false);
+          // Set the first doctor as selected
+    
+          // setFilteredData(result || []); // Set initial filtered data
+        } catch (error) {
+          console.error("Error fetching data:", error);
+          notification.error({
+            message: "Fetch Failed",
+            description: "Unable to retrieve data. Please try again later.",
+          });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+
+   const bookAppointment = async () => {
+      const payload = {
+        hospital_id: parseInt(hospital_id),
+        patient_id: selectedPatient?.id,
+        // tech_id: parseInt(selectedDoctorId),
+        payment_status: 0,
+        booked_by: 0,
+        status: 0,
+        slot_time: dayTimings.id,
+        appointment_time: new Date().toLocaleTimeString('en-GB', { hour12: false }), // HH:MM:SS
+        appointment_day: new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+        referal_person: isOthers ? 0 : referalPersonId,
+        is_other_referal: isOthers ? 1 : 0,
+        other_referal_name: isOthers ? otherReferalName : "-",
+        other_referal_mobile: isOthers ? otherReferalMobile : "-",
+        apt_start_time: `${dayTimings.from_time}:00`,
+        apt_end_time: "00:00:00"
+      };
+  
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(`${var_api}appointment/gos-post`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token,
+          },
+          body: JSON.stringify(payload),
+        });
+  
+        if (response.status === 200 || response.status === 201) {
+          console.log("✅ Booking success, calling updateTechstaffStatus()");
+        } else {
+          throw new Error("Failed to book appointment");
+        }
+  
+        const result = await response.json(); // Ensure response parsing before using data
+        console.log("Appointment booked successfully:", result);
+        // const audio = new Audio(bookingaudio);
+        // audio.play();
+        notification.success({
+          message: "Registration Successful!",
+          description: `Registration booked for ${result.appointment_day} at slot ${result.slot_time} with ${result.tech_name}. Token No: ${result.token_no}`,
+        });
+  
+        setSelectedAppointment({
+            hospital_id: parseInt(hospital_id),
+            appointment_day: result?.appointment_day,
+            id: result?.appointmentId,
+            patient_id: selectedPatient?.id,
+            slot_time: result?.slot_time,
+            appointment_time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+            apt_start_time: `${dayTimings.from_time}:00`,
+            status: 0,
+            tech_id: result?.tech_id || 0,
+          })
+
+         return result; // ✅ Return ID for further usage
+
+        // setIsEndSessionModalVisible(true);
+      } catch (error) {
+        console.error("Error booking appointment:", error);
+        notification.error({
+          message: "Failed",
+          description: "Failed to book appointment or post vital details.",
+        });
+      }
+    };
+
+
+     const prepareAppointmentData = (appt) => {
+  const allServices = Object.entries(tabRows).flatMap(([tab, rows]) => 
+    rows
+   .filter(row => row.service_type_id != null && row.service_type_id !== '') // Filter out null/empty
+   .map(row => ({
+      service_type_id: row.service_type_id,
+      service_type: getServiceTypeForTab(tab),
+      unit_price: row.price,
+      quantity: row.qty,
+      discount: 0,
+      remark: row.remarks
+    }))
+  );
+
+  // Initialize with default values to prevent null
+  const opTotals = calculateTabTotals('op') || { subTotal: 0, discount: 0, grandTotal: 0 };
+  const scanTotals = calculateTabTotals('scan') || { subTotal: 0, discount: 0, grandTotal: 0 };
+  const investigationTotals = calculateTabTotals('investigation') || { subTotal: 0, discount: 0, grandTotal: 0 };
+  const reviewTotals = calculateTabTotals('review') || { subTotal: 0, discount: 0, grandTotal: 0 };
+
+  // Convert all values to numbers and provide fallback
+  const opDiscount = Number(opTotals.discount) || 0;
+  const scanDiscount = Number(scanTotals.discount) || 0;
+  const investigationDiscount = Number(investigationTotals.discount) || 0;
+  const reviewDiscount = Number(reviewTotals.discount) || 0;
+
+  const grandDiscount = opDiscount + scanDiscount + investigationDiscount + reviewDiscount;
+  const grandTotal = (Number(opTotals.subTotal) || 0) + 
+                    (Number(scanTotals.subTotal) || 0) + 
+                    (Number(investigationTotals.subTotal) || 0) + 
+                    (Number(reviewTotals.subTotal) || 0) - 
+                    grandDiscount;
+console.log("grna", grandDiscount, opDiscount, scanDiscount,investigationDiscount,reviewDiscount );
+  return {
+    hospital_id: hospital_id,
+    patient_id:  selectedPatient?.id,
+    tech_id: 0,
+    appointment_day: appt.appointment_day,
+    appointment_time: appt.appointment_time,
+    payment_status: 0,
+    status: 3,
+    apt_start_time: `${dayTimings.from_time}:00`,
+  apt_end_time: new Date().toLocaleTimeString('en-GB', { hour12: false }), // "21:11:57"
+    amount: Math.max(0, grandTotal), // Ensure amount is never negative
+    gosServices: allServices,
+    op_total: Number(opTotals.subTotal) || 0,
+    op_discount: opDiscount,
+    scan_total: Number(scanTotals.subTotal) || 0,
+    scan_discount: scanDiscount,
+    investigation_total: Number(investigationTotals.subTotal) || 0,
+    investigation_discount: investigationDiscount,
+    review_total: Number(reviewTotals.subTotal) || 0,
+    review_discount: reviewDiscount,
+    grand_discount: grandDiscount,
+    grand_total: Math.max(0, grandTotal) // Ensure total is never negative
+  };
+};
 
 
   
@@ -294,40 +475,36 @@ const handleDeleteRow = (rowId) => {
    const handleEndSession = async () => {
     setLoading(true);
     try {
-      const appointmentData = prepareAppointmentData();
+
+       // ✅ Step 1: Prepare appointment data first
+    const appointmentData = prepareAppointmentData({ appointmentId: null });
+
+    // ✅ Validation: must have at least one service
+    if (!appointmentData.gosServices || appointmentData.gosServices.length === 0) {
+      notification.warning({
+        message: "No Services Entered",
+        description: "Please add at least one service before ending the session."
+      });
+      setLoading(false);
+      return;
+    }
+
+       // Step 1: Book appointment & get ID
+    const bookedAppt = await bookAppointment();
+    if (!bookedAppt?.appointmentId) throw new Error("Booking failed, cannot upload case sheet.");
+console.log("bb", bookedAppt);
+      const finalAppointmentData = prepareAppointmentData(bookedAppt);
       // Apply the discount to the first service type (or distribute as needed)
       // appointmentData.gosServices[0].discount = discount;
       // appointmentData.grand_discount = discount;
-      appointmentData.amount = appointmentData.grand_total - discount;
-  
-      const payload = {
-        ...appointmentData,
-        private_status: 0, // Mark as private appointment 
-      };
-  
-      // Check if both date and slot are not empty
-      const hasPrivateAppointment = appointmentPrivateDate && selectedPrivateSlot;
-      
-      if (hasPrivateAppointment) {
-        // Add private appointment details to the payload
-        const formattedDate = new Date(appointmentPrivateDate)
-          .toLocaleDateString('en-GB')
-          .split('/')
-          .join('-');
-  
-        payload.private_status = 1; // Mark as private appointment
-        payload.private_appointment = {  // Add private appointment details
-          date: formattedDate,
-          slot: selectedPrivateSlot,
-          remark: remarkPrivate,
-          status: 0
-        };
-      }
-  
+
+
+    
+      finalAppointmentData.amount = finalAppointmentData.grand_total - discount;
       
       const response = await axios.put(
-        `${var_api}appointment/gos-end-session/${selectedAppointment.id}`,
-        payload,
+        `${var_api}appointment/gos-end-session/${bookedAppt?.appointmentId}`,
+        finalAppointmentData,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -335,23 +512,42 @@ const handleDeleteRow = (rowId) => {
           }
         }
       );
-  
-      if (response.data.message) {
-        notification.success({
-          message: 'Session Completed',
-          description: response.data.message
-        });
-        setIsEndSessionModalVisible(false);
-          const start_date = startDate ? formatDate(startDate) : formatDate(initialSettingsApt.startDate);
-          const end_date = endDate ? formatDate(endDate) : formatDate(initialSettingsApt.endDate);
-  
-        fetchData(start_date, end_date, selectedPatientsId);
-  
-         // Reset form fields
-        setAppointmentPrivateDate('');
-        setSelectedPrivateSlot('');
-        setRemarkPrivate('');
+
+       // Step 4: Upload files locally using appointment ID
+    if (selectedFiles.length > 0) {
+      const formData = new FormData();
+      formData.append('appointment_id', bookedAppt?.appointmentId);
+      formData.append('hospital_id', hospital_id);
+      formData.append('folder', s3Config.folderPath);
+      for (let file of selectedFiles) {
+        formData.append('cash_sheet', file);
       }
+
+      await axios.post(`${var_api}cash_sheet/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percent);
+        }
+      });
+
+      setUploadProgress(0);
+      await fetchUploadedFiles();
+    }
+
+    notification.success({ message: 'Session Completed', description: 'Files uploaded successfully.' });
+    await handleServiceTypesHistotry(bookedAppt?.appointmentId);
+    // Switch to payments tab after fetching invoice
+setActiveTab("payments");
+  
+      // if (response.data.message) {
+      //   notification.success({
+      //     message: 'Session Completed',
+      //     description: response.data.message
+      //   });
+      //   // setIsEndSessionModalVisible(false);
+       
+      // }
     } catch (error) {
       console.error('Error ending session:', error);
       notification.error({
@@ -421,6 +617,8 @@ const getCurrentRows = () => {
         return serviceGroups.Investigation;
       case 'review':
         return serviceGroups.Review;
+      case 'laser':
+        return serviceGroups.laser;
       default:
         return [];
     }
@@ -529,7 +727,8 @@ const calculateTabTotals = (tab) => {
     case 'scan': return 1;
     case 'investigation': return 2;
     case 'review': return 3;
-    default: return 4; // Others
+    case 'laser': return 4;
+    default: return 5; // Others
   }
 };
 
@@ -556,7 +755,7 @@ const handleFileDrop = (files) => {
 
 const processFiles = async (files) => {
   setSelectedFiles(files);
-  await handleFileUpload(files);
+  // await handleFileUpload(files);
 };
 
 const handleFileUpload = async (files) => {
@@ -594,6 +793,40 @@ const handleFileUpload = async (files) => {
     setUploadProgress(0);
   } finally{
      setLoading(false);
+  }
+};
+
+const fetchUploadedFiles = async (id) => {
+  const aptid = id || selectedAppointment.id
+  try {
+    const response = await axios.get(`${var_api}cash_sheet/list/${hospital_id}/${aptid}`);
+    const data = response.data.data;
+
+    console.log("casedata", data);
+
+    const formattedFiles = data.map(file => {
+  const createdAt = new Date(file.created_at); // assuming API returns created_at in ISO format
+  const formattedDate = createdAt.toLocaleDateString('en-GB'); // dd/mm/yyyy
+
+  return {
+      id: file.cash_sheet_id,
+      name: file.image_url.split('/').pop(),
+      size: 0, // You can get size if needed
+      extension: file.image_url.split('.').pop(),
+      url: file.image_url,
+      key: file.image_url.split('.amazonaws.com/')[1],
+      created_at: formattedDate.replace(/\//g, "-") // converts dd/mm/yyyy → dd-mm-yyyy
+    };
+});
+
+    setUploadedFiles(formattedFiles);
+  } catch (error) {
+    console.error("Error fetching uploaded documents:", error);
+     notification.error({
+      message: 'Error',
+      description: "Failed to fetch uploaded documents."
+    });
+    // alert("Failed to fetch uploaded documents.");
   }
 };
 
@@ -1112,6 +1345,8 @@ const handleCsvUpload = async () => {
     fetchinstalldata();
     fetchReferalDetails();
     fetchData();
+    fetchSlotMaster();
+    fetchpaymode();
     if (location.state?.openModal) {
       handleModalOpen();
     }
@@ -1377,7 +1612,7 @@ const handleFormSubmit = async (values) => {
       const hospital_id = localStorage.getItem('hospital_id');
   
       // Call First API
-      const response = await fetch(`${var_api}appointment/get-appointment-list/by-patient/${hospital_id}/${id}`, {
+      const response = await fetch(`${var_api}appointment/get-gos-appointment-list/by-patient/${hospital_id}/${id}`, {
         method: "GET",
         headers: { "Authorization": `${token}` }
       });
@@ -1412,9 +1647,11 @@ const handleFormSubmit = async (values) => {
   };
   const handleOpenSeriveHistory = (reco) => {
     console.log("reco", reco);
-    setPatientServicedetails(reco);
-    setIsOpenPatientServiceHistory(true);
+    handleServiceTypesHistotry(reco?.id);
+    fetchUploadedFiles(reco?.id)
+    setIsEndSessionModalVisibleEdit(true);
   };
+  
   const handleReset = () => {
     form.resetFields();
     setFile(null); // Clear file state
@@ -1511,8 +1748,7 @@ const handleFormSubmit = async (values) => {
       render: (text,record) => (
         text ? (
           <span 
-            style={{ color: '#1d7ed8', cursor: 'pointer' }} 
-            onClick={() => handleOpenAptHistory(record)}
+            // style={{ color: '#1d7ed8', cursor: 'pointer' }} 
           >
             {/* #{adminpatientp}{text} */}
             #{text}
@@ -1526,7 +1762,7 @@ const handleFormSubmit = async (values) => {
       render: (text, record) => (
         text ? (
           <span 
-            style={{ color: '#1d7ed8', cursor: 'pointer' }} 
+            // style={{ color: '#1d7ed8', cursor: 'pointer' }} 
             // onClick={() => handleOpenpatientdetails(record)}
           >
             {text}
@@ -1541,7 +1777,7 @@ const handleFormSubmit = async (values) => {
       render: (text, record) => (
         text ? (
           <span 
-            style={{ color: '#1d7ed8', cursor: 'pointer' }} 
+            // style={{ color: '#1d7ed8', cursor: 'pointer' }} 
             // onClick={() => handleOpenpatientdetails(record)}
           >
             {text}
@@ -1647,6 +1883,14 @@ const handleFormSubmit = async (values) => {
       >
         <i className="fe fe-calendar"></i> Registration
       </a>
+       <a
+        href="#"
+        className="me-1 btn btn-sm bg-primary-light"
+        data-bs-target="#make_appointment_modal"
+        onClick={() => handleOpenAptHistory(record)}
+      >
+        <i className="fe fe-book"></i> History
+      </a>
           {/* <a
             href="#"
             className="me-1 btn btn-sm bg-danger-light"
@@ -1673,7 +1917,7 @@ const handleFormSubmit = async (values) => {
       render: (_, __, index) => index + 1, // Calculate serial number based on index
     },
     {
-      title: "Appointment Id",
+      title: "Registration Id",
       dataIndex: "token_no",
       render: (text) => (
         <span style={{ color: '#1d7ed8', cursor: 'pointer' }}>
@@ -1682,27 +1926,32 @@ const handleFormSubmit = async (values) => {
       ),
     },
     {
-      title: "Appointment Date",
+      title: "Registration Date",
       dataIndex: "appointment_day",
       render: (text) => (
         text ? text : "N/A"
       ),
     },    
     {
-      title: " Appointment Time",
-      dataIndex: "slot_time",
+      title: " Registration Time",
+      dataIndex: "apt_start_time",
+      render: (text) => (text ? text : "N/A"),
+    },
+     {
+      title: "Discount",
+      dataIndex: "grand_discount",
       render: (text) => (text ? text : "N/A"),
     },
     {
-      title: "Amount",
-      dataIndex: "bill_amount",
+      title: "Total",
+      dataIndex: "grand_total",
       render: (text) => (text ? text : "N/A"),
     },
     {
       title: "Payment Status",
       dataIndex: "paid_status",
       render: (text) => {
-        let statusText = text === 0 ? "Not Paid" : text === 1 ? "Paid" : "N/A";
+        let statusText = text === 0 ? "Not Paid" : text === 1 ? "Paid" : "Partial";
         let badgeColor = text === 0 ? "#ff4d4f" : text === 1 ? "#52c41a" : "#d9d9d9"; // Colors: red, green, gray
     
         return (
@@ -1720,6 +1969,11 @@ const handleFormSubmit = async (values) => {
           </span>
         );
       },
+    },
+     {
+      title: "Paymodes",
+      dataIndex: "pay_modes",
+      render: (text) => (text ? text : "N/A"),
     },
     {
       title: "Status",
@@ -1778,14 +2032,14 @@ const handleFormSubmit = async (values) => {
       },
     },    
     {
-      title: "Detal History", // New column for vital details
+      title: "Services", // New column for vital details
       dataIndex: "dental_medical_chart_count", // Key for the new column
       render: (text, record) => (
         // <p onClick={() => handleDentalHistoryModal(record)} className="text-success text-md">{text}</p>
         <Button
           icon={<EyeOutlined />}
           type="primary"
-          onClick={() => handleOpenSeriveHistory(record.invoice_billing)} // Opens modal with row data
+          onClick={() => handleOpenSeriveHistory(record)} // Opens modal with row data
         />
       ),
     },
@@ -1833,7 +2087,129 @@ const handleFormSubmit = async (values) => {
   ];
 
 
+  //open the paymode list
+  const handleOpenPay = () => {
+    setIsPayModalVisible(true);
+    fetchInvoice(selectedAppointment?.id);
+  }
 
+
+    const handlePayFormSubmit = async () => {
+      let paidStatus;
+      if (invoiceData && totalPayAmount) {
+        if (parseFloat(totalPayAmount) < invoiceData.final_charge) {
+          console.log(2); // Less than final_amount
+          paidStatus = 2
+        } else {
+          console.log(1); // Greater than or equal to final_amount
+          paidStatus = 1
+        }
+      } else {
+        console.log("Please enter a valid amount"); // Handle edge cases
+      }
+  
+      const payload = {
+    paid_status: paidStatus
+  };
+  
+  if (paidStatus === 1) {
+    payload.paid_amount = totalAmount;
+    payload.balance_amount = invoiceData?.final_charge - totalAmount;
+  }
+  
+  
+      try {
+        const token = localStorage.getItem("token");
+  
+        // Convert payload to a JSON string
+        const jsonPayload = JSON.stringify(payload);
+        const response = await fetch(`${var_api}gos-invoice-billing/update-payment/${invoiceData?.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token,
+          },
+          body: jsonPayload
+        });
+  
+        if (!response.ok) {
+          throw new Error("Failed to update data");
+        }
+  
+        const result = await response.json();
+        console.log("Update Success:", result);
+  
+        notification.success({
+          message: "Update Successful",
+          description: "The paid has been updated.",
+        });
+        await handlecalculate();
+        handleServiceTypesHistotry(selectedAppointment?.id);
+        setIsPayModalVisible(false); // Close the modal on success
+      } catch (error) {
+        console.error("Error updating data:", error);
+        notification.error({
+          message: "Update Failed",
+          description: "Failed to update the patient medical history. Please try again.",
+        });
+      }
+    };
+
+
+     const handlecalculate = async () => {
+        try {
+          // Retrieve the hospital_id from localStorage
+          const hospital_id = localStorage.getItem("hospital_id");
+          const token = localStorage.getItem("token");
+          // Prepare the data for the POST request
+          const formData = calculatatedpaymode
+            .filter((item) => item.paid_amount > 0) // Include only items with currentValue > 0
+            .map((item) => ({
+              paymode_id: item.id,
+              paid_amount: item.paid_amount,
+              hospital_id: hospital_id,
+              appointment_id: invoiceData?.appointment_id || selectedAppointment?.id,
+            }));
+          // Determine the URL and HTTP method based on whether it's an update or create operation
+          const url =
+            `${var_api}invoicePaymode/post`;
+          const method = "POST";
+          // Send the request
+          const response = await fetch(url, {
+            method,
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: token, // Make sure `token` is set correctly
+            },
+            body: JSON.stringify(formData),
+          });
+    
+          // Check if the response is OK
+          if (!response.ok) {
+            throw new Error("Error saving data");
+          }
+          const deleteformData = calculatatedpaymode
+            .filter((item) => item.paid_amount === 0 || isNaN(item.paid_amount)) // Check for 0 or NaN
+            .map((item) => ({
+              paymode_id: item.id,
+              appointment_id: invoiceData?.appointment_id,
+            }));
+          console.log("delete", deleteformData);
+          if (deleteformData.length > 0) {
+            await handleDelete(deleteformData);
+          }
+          handleServiceTypesHistotry(selectedAppointment?.id);
+          setIsPayModalVisible(false);
+        } catch (error) {
+          console.error("Error saving data:", error);
+    
+          // Show an error notification if something goes wrong
+          notification.error({
+            message: "Operation Failed",
+            description: "There was an error while saving the data.",
+          });
+        }
+      };
 
 
   const handleFormSubmitmedicine = async (values) => {
@@ -1955,6 +2331,469 @@ const handleFormSubmit = async (values) => {
       form.setFieldsValue({ age: age });
     }
   };
+
+
+  const renderSection = (sectionData, label) => {
+  if (!sectionData) return <p>No data for {label}</p>;
+
+  console.log("lable", label);
+  
+  
+  return (
+    <div>
+      <table className="table" style={{ maxWidth: "80%" }}>
+        <tbody>
+          <tr>
+            <td><strong>Subtotal:</strong></td>
+            <td className="text-end">₹{sectionData.subtotal ?? 0}</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Discount:</strong>
+            </td>
+            <td className="text-end d-flex justify-content-end align-items-center">
+              {editing ? (
+                <>
+                  <input
+                    type="number"
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    className="form-control form-control-sm w-50 me-2"
+                    min="0"
+                    max={sectionData.subtotal || 0}
+                  />
+                  <button
+                    className="btn btn-sm btn-success me-2"
+                    onClick={() => handleDiscountSave(label)}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => {
+                      setEditing(false);
+                      setDiscountValue(sectionData.discount ?? 0);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  ₹{sectionData.discount ?? 0}
+                  <button
+                    className="btn btn-sm btn-link text-primary"
+                    onClick={() => {
+                      setEditing(true);
+                      setDiscountValue(sectionData.discount ?? 0);
+                    }}
+                  >
+                    <i className="fe fe-pencil text-danger" />
+                  </button>
+                </>
+              )}
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Total:</strong></td>
+            <td className="text-end" style={{ fontSize: "18px" }}>
+              ₹{sectionData.total ?? 0}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Rest of your component remains the same */}
+      <h6 className="mt-3">Service Details</h6>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Service</th>
+            <th>Qty</th>
+            <th>Amount</th>
+            <th>Remark</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sectionData?.items?.length > 0 ? (
+            sectionData.items.map((item, idx) => (
+              <tr key={idx}>
+                <td>{idx + 1}</td>
+                <td>{item.name}</td>
+                <td>{item.qty}</td>
+                <td>₹{(Number(item.amount) || 0).toFixed(2)}</td>
+                <td title={item?.remark || "No remark"}
+                    style={{ cursor: "pointer" }}>
+                  {(item?.remark?.slice(0, 10) || "No ")}
+                  {item?.remark && item.remark.length > 3 ? "..." : ""}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="4" className="text-center">No services available</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+
+
+const handleDiscountSave = async (tabKey) => {
+  const fieldMap = {
+    op: "op_discount",
+    scan: "scan_discount",
+    investigation: "investigation_discount",
+    review: "review_discount"
+  };
+
+  const fieldName = fieldMap[tabKey];
+  console.log("fff", fieldName,tabKey, fieldMap[tabKey])
+
+  if (!fieldName) return;
+
+  try {
+    const payload = { [fieldName]: Number(discountValue) };
+
+    const response = await fetch(`${var_api}gos-invoice-billing/update-service-discount/${invoiceData.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: localStorage.getItem("token"),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+    await handleServiceTypesHistotry(selectedAppointment?.id)
+
+    if (response.ok) {
+      setEditing(false);
+      notification.success({ message: `${label} Discount updated.` });
+    } else {
+      // notification.error({ message: result.error || "Update failed." });
+    }
+  } catch (error) {
+    console.error(error);
+    // notification.error({ message: "Something went wrong!" });
+  }
+};
+
+const transformInvoiceRows = (servicesData) => {
+  // servicesData: { op: [...], scan: [...], investigation: [...], review: [...]}
+  const mapItemsToRows = (items, serviceTypeId) =>
+    items.map(item => ({
+      id: Date.now() + Math.random(), // unique id
+      service_name: item.service_details?.service_name || "Unknown",
+      service_type_id: serviceTypeId,
+      service_type: serviceTypeId,
+      price: item.unit_price || 0,
+      qty: item.quantity || 1,
+      final_price: item.final_amount || item.total_amount || 0,
+      remarks: item.remark || "",
+      is_lab: item.is_lab || 0,
+    }));
+
+  return {
+    op: mapItemsToRows(servicesData.op || [], 0),
+    scan: mapItemsToRows(servicesData.scan || [], 1),
+    investigation: mapItemsToRows(servicesData.investigation || [], 2),
+    review: mapItemsToRows(servicesData.review || [], 3)
+  };
+};
+
+  const transformInvoiceData = (apiData) => {
+  if (!apiData) return null;
+
+  return {
+    // Grand Summary data
+    id: apiData.id,
+    appointment_id: apiData.appointment_id,
+    consultation: apiData.op_total || 0,
+    medical_total: (apiData.scan_total || 0) + (apiData.investigation_total || 0) + (apiData.review_total || 0),
+    discount: apiData.grand_discount || 0,
+    final_charge: apiData.grand_total || 0,
+    payment_status : apiData.paid_status,
+    
+    // Individual sections
+    op: {
+      subtotal: apiData.op_total || 0,
+      discount: apiData.op_discount || 0,
+      total: (apiData.op_total || 0) - (apiData.op_discount || 0),
+      items: apiData.services?.op?.map(item => ({
+        name: item.service_details?.service_name || 'OP Service',
+        qty: item.quantity || 1,
+        amount: item.final_amount || item.total_amount || 0,
+        remark: item.remark
+      })) || []
+    },
+    scan: {
+      subtotal: apiData.scan_total || 0,
+      discount: apiData.scan_discount || 0,
+      total: (apiData.scan_total || 0) - (apiData.scan_discount || 0),
+      items: apiData.services?.scan?.map(item => ({
+        name: item.service_details?.service_name || 'Scan Service',
+        qty: item.quantity || 1,
+        amount: item.final_amount || item.total_amount || 0,
+        remark: item.remark
+      })) || []
+    },
+    investigation: {
+      subtotal: apiData.investigation_total || 0,
+      discount: apiData.investigation_discount || 0,
+      total: (apiData.investigation_total || 0) - (apiData.investigation_discount || 0),
+      items: apiData.services?.investigation?.map(item => ({
+        name: item.service_details?.service_name || 'Investigation Service',
+        qty: item.quantity || 1,
+        amount: item.final_amount || item.total_amount || 0,
+        remark: item.remark
+      })) || []
+    },
+    review: {
+      subtotal: apiData.review_total || 0,
+      discount: apiData.review_discount || 0,
+      total: (apiData.review_total || 0) - (apiData.review_discount || 0),
+      items: apiData.services?.review?.map(item => ({
+        name: item.service_details?.service_name || 'Review Service',
+        qty: item.quantity || 1,
+        amount: item.final_amount || item.total_amount || 0,
+        remark: item.remark
+      })) || []
+    }
+  };
+};
+
+    const handleServiceTypesHistotry = async (apt_id) => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+
+      // Call First API
+      const response = await fetch(`${var_api}gos-invoice-billing/invoice-service-list/${apt_id}`, {
+        method: "GET",
+        headers: { "Authorization": `${token}` }
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch data");
+      }
+
+      const data = await response.json();
+       const transformedData = transformInvoiceData(data);
+        setInvoiceData(transformedData);
+      setExistingServices(data);
+
+      // If appointment status is 3, update tabRows from the API services
+    if (selectedAppointment?.status === 3) {
+      const newTabRows = transformInvoiceRows(data.services || {});
+      setTabRows(newTabRows);
+    }
+
+    } catch (error) {
+      setExistingServices(null);
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+   const fetchpaymode = async () => {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const hospital_id = localStorage.getItem('hospital_id');
+      try {
+        const response = await fetch(`${var_api}paymodemaster/get-by-active/${hospital_id}`, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `${token}`,
+          },
+        });
+        if (response.status === 401) {
+          history.push("/admin/login"); // Redirect to login page
+          notification.warning({
+            message: "Unauthorized",
+            description: "Your session has expired. Please log in again.",
+          });
+          return
+        }
+  
+  
+        if (!response.ok) throw new Error("Failed to fetch data");
+        const result = await response.json();
+        setpaymode(result || []);
+        setmodeFilteredData(result || []);
+        setLoading(false);
+        console.log("paymodes", result);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        setpaymode([]);
+        // notification.error({
+        //   message: "Fetch Failed",
+        //   description: "Unable to retrieve data. Please try again later.",
+        // });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const fetchInvoice = async (id) => {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const hospital_id = localStorage.getItem('hospital_id');
+      try {
+        const response = await fetch(`${var_api}invoicePaymode/get/${hospital_id}/${id}`, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `${token}`,
+          },
+        });
+        if (response.status === 401) {
+          history.push("/admin/login"); // Redirect to login page
+          notification.warning({
+            message: "Unauthorized",
+            description: "Your session has expired. Please log in again.",
+          });
+          return
+        }
+        if (!response.ok) throw new Error("Failed to fetch data");
+        const result = await response.json();
+        setInvoice(result || []);
+        setInvoicefiltereddata(result || []); // Set initial filtered data
+        setLoading(false);
+        // Update modefiltereddata based on fetched result
+        const filteredpayData = modefiltereddata.map(item => {
+          const matchingResult = result.find(r => r.paymode_id == item.id);
+  
+          if (matchingResult) {
+            return {
+              ...item,
+              paid_amount: matchingResult.paid_amount,
+              appointment_id: matchingResult.appointment_id
+            };
+          } else {
+            return {
+              ...item,
+              paid_amount: 0
+            };
+          }
+        });
+        console.log("textafter", filteredpayData);
+        // Calculate total paid amount
+        const totalPaidAmount = filteredpayData.reduce((total, item) => total + item.paid_amount, 0);
+  
+        setmodeFilteredData(filteredpayData);
+        setTotalPayAmount(totalPaidAmount);
+  
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        // notification.error({
+        //   message: "Fetch Failed",
+        //   description: "Unable to retrieve data. Please try again later.",
+        // });
+        console.log("textafter", modefiltereddata)
+      } finally {
+        setLoading(false);
+      }
+    };
+
+
+      // onchnage for paymode text field
+  const handlePayInputChange = (index, value) => {
+    // Debug: Log the input value and its type
+    console.log("Input Value:", value, "Type:", typeof value);
+
+    // Ensure the value is converted to a valid number or default to 0
+    const numericValue = parseFloat(value);
+    const validatedValue = !isNaN(numericValue) && numericValue >= 0 ? numericValue : 0;
+
+    // Debug: Log the validated numeric value
+    console.log("Validated Numeric Value:", validatedValue);
+
+    // Update the specific item's `paid_amount` in modefiltereddata
+    const updatedModefilteredData = modefiltereddata.map((item, idx) => {
+      if (idx === index) {
+        return { ...item, paid_amount: validatedValue }; // Update `paid_amount`
+      }
+      return item; // Keep other items unchanged
+    });
+
+    // Debug: Log the updated modefiltereddata
+    console.log("Updated ModefilteredData:", updatedModefilteredData);
+
+    // Calculate the total paid amount
+    const updatedTotal = updatedModefilteredData.reduce((acc, item) => {
+      // Ensure each `paid_amount` is treated as a number
+      const amount = parseFloat(item.paid_amount) || 0;
+      return acc + amount;
+    }, 0);
+
+    // Debug: Log the calculated total
+    console.log("Calculated Total Amount:", updatedTotal);
+
+    // Update the payment details for the specific item
+    const updatedPaymentInfo = {
+      paymode_id: updatedModefilteredData[index]?.paymode_id || null, // Get paymode_id
+      paidAmount: validatedValue, // Updated paid amount
+    };
+
+    // Debug: Log the updated payment info
+    console.log("Updated Payment Info:", updatedPaymentInfo);
+
+    // Update the state for payment details and filtered data
+    const updatedPaymentDetails = [...paymentDetails];
+    updatedPaymentDetails[index] = updatedPaymentInfo; // Update payment details at the index
+
+    // Update states
+    setPaymentDetails(updatedPaymentDetails);
+    setCalculatatedpaymode(updatedModefilteredData);
+    setTotalPayAmount(updatedTotal);
+
+
+    // Debug: Final state logs
+    console.log("Final Payment Details:", updatedPaymentDetails);
+    console.log("Final Total Amount:", updatedTotal);
+  };
+
+    //onchange function for paymode card
+  const handlePaymodeClick = (index) => {
+    const updatedData = modefiltereddata.map((item, idx) => ({
+      ...item,
+      paid_amount: idx === index ? invoiceData?.final_charge : 0, // Assign final_amount to clicked paymode, others get 0
+    }));
+    console.log("paymos", invoiceData, totalPayAmount);
+    setTotalPayAmount(0);
+    setTotalPayAmount(invoiceData?.final_charge);
+
+    setmodeFilteredData(updatedData);
+    // Also update `paymentDetails`
+    const updatedPaymentDetails = updatedData.map((item, idx) => ({
+      id: item.id,
+      paid_amount: item.paid_amount,
+    }));
+
+    console.log("up", updatedPaymentDetails, invoiceData);
+
+    setCalculatatedpaymode(updatedPaymentDetails);
+    // handlePayInputChange(index, existingServices?.final_amount); // Update calculations
+  };
+  
+
+  useEffect(() => {
+  if (invoiceData) {
+    console.log("Invoice data is now ready:", invoiceData);
+  }
+}, [invoiceData]);
+
+useEffect(() => {
+  if (selectedAppointment?.id) {
+    handleServiceTypesHistotry(selectedAppointment.id);
+  }
+}, [activeTab, selectedAppointment]);
 
 
   return (
@@ -3657,12 +4496,24 @@ const handleFormSubmit = async (values) => {
                 <li className="nav-item">
             <Link
   className={`nav-link ${activeTab === "documents" ? "active" : ""}`}
-  onClick={() => setActiveTab("documents")}
+  onClick={() => {setActiveTab("documents"); console.log("invoic", invoiceData)}}
   to="#"
 >
   Documents
 </Link>
             </li>
+
+            <li className="nav-item">
+            <Link
+  className={`nav-link ${activeTab === "Payments" ? "active" : ""}`}
+  onClick={() => setActiveTab("Payments")}
+  to="#"
+>
+  Payments
+</Link>
+            </li>
+
+
 
 
             
@@ -3694,8 +4545,8 @@ const handleFormSubmit = async (values) => {
 
           <br />
           
-           {
-            (selectedAppointment?.status == 0 || selectedAppointment?.status == 1 || selectedAppointment?.status == 2) && (
+           {/* {
+            (selectedAppointment?.status == 0 || selectedAppointment?.status == 1 || selectedAppointment?.status == 2) && ( */}
               <div  className="d-flex justify-content-between align-items-center"  style={{ marginTop:"10px" }}>
                    <h5>
       Overall Grand Total:{" "}
@@ -3716,7 +4567,7 @@ const handleFormSubmit = async (values) => {
                 </button>
                    </div>
               </div>
-            )}
+            {/* )} */}
             <br/>
 
           {/* Content */}
@@ -3728,13 +4579,13 @@ const handleFormSubmit = async (values) => {
             </div>
             <div className="row meditation-row">
               <div className="col-md-12">
-                {(selectedAppointment?.status == 0 || selectedAppointment?.status == 1) ? (
+                {/* {(selectedAppointment?.status == 0 || selectedAppointment?.status == 1) ? ( */}
                   <div className="d-flex justify-content-end align-items-end mb-4">
                     <Link to="#" className="add-medical more-item mb-0" onClick={handleAddNewRow}>
                       Add New
                     </Link>
                   </div>
-                ) : (
+                {/* ) : (
                   <div className="add-new-med text-end mb-4">
                     {isEnable ? (
                       <>
@@ -3754,7 +4605,7 @@ const handleFormSubmit = async (values) => {
                 </button>
                     )}
                   </div>
-                )}
+                )} */}
 
                 
 
@@ -3957,6 +4808,96 @@ const handleFormSubmit = async (values) => {
     </div>
   </div>
 )}
+
+
+ {activeTab === "payments" && (
+  <div className="container my-3" style={{ maxWidth: "650px" }}>
+  {/* Header Section */}
+  <div className="card shadow-sm mb-3">
+    <div className="card-body d-flex justify-content-between align-items-center">
+                            <h5>
+                              Service Details{" "}
+                            </h5>
+                            <div>
+                              {
+                                invoiceData &&
+                                <span className={`badge me-2 ${invoiceData?.payment_status == 0 ? "bg-danger" : invoiceData?.payment_status == 1 ? "bg-success" : invoiceData?.payment_status == 2 ? "bg-warning" : "bg-danger"}`} onClick={handleOpenPay}>
+                                  {invoiceData?.payment_status == 0 ? "Unpaid" : invoiceData?.payment_status == 1 ? "Paid" : invoiceData?.payment_status == 2 ? "Partial" : "UnPaid"}
+                                </span>
+                              }
+                              {
+                                invoiceData?.payment_status == 1 &&
+                                // <Link
+                                //                   // to={`/admin/doctor-invoice-report?id=${existingServices?.id}`} // Pass token as a query parameter
+                                //                   to={{
+                                //                     pathname: `/admin/doctor-invoice-report?id=${existingServices?.id}`,
+                                //                     state: { from: "appointment-list" }
+                                //                   }}
+                                //                   className="btn btn-warning more-item mb-0"  
+                                //                 ><PrinterIcon style={{ width: "16px", height: "16px" }}/></Link>
+                                  <Link
+                                  // to={{
+                                  //   pathname: `/admin/medical-invoice-report`,
+                                  //   state: { data: existingServices },
+                                  // }}
+                                   to={{
+                                                    pathname: `/admin/doctor-invoice-report`,
+                                                    state: { from: "appointment-list", data: existingServices }
+                                                  }}
+                                  className="btn btn-warning more-item mb-0"
+                                >
+                                  <PrinterIcon style={{ width: "16px", height: "16px" }} />
+                                </Link>
+  
+                              }
+  
+                              {/* <button className="btn btn-primary" onClick={handleOpenPay}>Pay Now</button> */}
+                            </div>
+                          </div>
+                           </div>
+                           {invoiceData && (
+        <div className="card mb-4">
+          <div className="card-body">
+            <h5 className="mb-3">Grand Summary</h5>
+            <table className="table" style={{ maxWidth: "80%" }}>
+              <tbody>
+                <tr>
+                  <td><strong>Subtotal:</strong></td>
+                  <td className="text-end">₹{invoiceData.consultation + invoiceData.medical_total}</td>
+                </tr>
+                <tr>
+                  <td><strong>Discount:</strong></td>
+                  <td className="text-end">
+                    ₹{invoiceData.discount}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Grand Total:</strong></td>
+                  <td className="text-end" style={{ fontSize: "20px" }}>
+                    ₹{(invoiceData.final_charge ?? 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+        {/* Service Sections */}
+        <div className="card shadow-sm">
+    <div className="card-body">
+            <Tabs defaultActiveKey="op" type="card" className="mb-4">
+              {sectionTypes.map((type) => (
+                <TabPane tab={type.toUpperCase()} key={type}>
+                  {renderSection(invoiceData?.[type], type)}
+                </TabPane>
+              ))}
+            </Tabs>
+             </div>
+  </div>
+  </div>
+   
+
+ )}
 
          {activeTab === "appointments" && (
   <div className="appointment-form-container">
@@ -4393,6 +5334,990 @@ const handleFormSubmit = async (values) => {
 
           )}
         </Modal>
+
+          <Modal
+                  title={"Select Paymode"}
+                  visible={isPayModalVisible}
+                  onCancel={() => setIsPayModalVisible(false)}
+                  footer={null}
+                >
+                  {invoiceData && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                      <h4 style={{ fontSize: '16px' }}>Final Amount: <span style={{ fontSize: '18px' }}>{invoiceData?.final_charge}</span></h4>
+                      <div style={{ textAlign: 'right' }}>
+                        <h4 style={{ fontSize: '16px' }}>Receive Amount: <span style={{ fontSize: '18px', color: 'green' }}>{totalPayAmount}</span></h4>
+                        <h4 style={{ fontSize: '16px' }}>
+                          Balance Amount:
+                          <span style={{ fontSize: '18px', color: invoiceData?.final_amount - totalAmount < 0 ? 'red' : 'black' }}>
+                            {Math.max((invoiceData?.final_charge - totalPayAmount).toFixed(2), 0)}
+                          </span>
+                        </h4>
+                      </div>
+                    </div>
+                  )}
+                  <div>
+        
+                    <table class="table table-hover">
+                      <thead>
+                        <tr>
+                          <th scope="col" style={{ textAlign: "center" }}>Paymode</th>
+                          <th scope="col" style={{ textAlign: "center" }}>Bill</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {modefiltereddata.map((item, index) => (
+                          <tr key={index}>
+                            <td>
+                              <div
+                                className={`card ${item.paid_amount > 0 ? 'bg-success text-light' : 'bg-light text-dark'}`}
+                                style={{
+                                  width: "auto",
+                                  height: "auto",
+                                  margin: "0px",
+                                  maxWidth: "120px",
+                                  textOverflow: "ellipsis",
+                                  overflow: "hidden",
+                                  whiteSpace: "nowrap",
+                                }}
+                                onClick={() => handlePaymodeClick(index)}
+                              // onClick={() => {
+                              //   // When clicked, update the input field with the paymode_name
+                              //   const updatedData = [...modefiltereddata];
+                              //   updatedData[index].paid_amount = item.paid_amount; // Keeps the same paid amount, just highlights the paymode
+                              //   setmodeFilteredData(updatedData); // Update state with new array
+                              // }}
+                              >
+                                <div className="card-body p-1" style={{ textAlign: "center", padding: "4px" }}>
+                                  {item.paymode_name}
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <Input
+                                type="number"
+                                value={item.paid_amount}
+                                style={{ width: "80px" }}
+                                marginRight={"10px"}
+                                onChange={(e) => {
+                                  const value = parseFloat(e.target.value);
+        
+                                  // Prevent negative input
+                                  if (value < 0) return;
+        
+                                  const updatedData = [...modefiltereddata];
+                                  updatedData[index].paid_amount = value; // Update the specific item in the array
+        
+                                  setmodeFilteredData(updatedData); // Update state with new array
+                                  handlePayInputChange(index, value); // Pass the index or value based on your use case
+                                }}
+                                onKeyDown={(e) => {
+                                  // Prevent using '-' key
+                                  if (e.key === '-' || e.key === 'e') {
+                                    e.preventDefault();
+                                  }
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+        
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+                      <button
+                        className="btn btn-primary mx-1"
+                        style={{
+                          color: "white",
+                          border: "none",
+                          padding: "5px 5px",
+                          borderRadius: "5px",
+                          fontSize: "16px",
+                          cursor: "pointer",
+                        }}
+                        onClick={handlePayFormSubmit}
+                      >
+                        {invoiceData?.payment_status === 0 ? "Submit" : "Update"}  {/* Change button text based on paid status */}
+                      </button>
+                      <button
+                        className="btn btn-danger mx-1"
+                        style={{
+                          color: "white",
+                          border: "none",
+                          padding: "5px 5px",
+                          borderRadius: "5px",
+                          fontSize: "16px",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => setIsPayModalVisible(false)}
+                      >
+                        Close
+                      </button>
+                    </div>
+        
+                  </div>
+                </Modal>
+
+
+
+                 <Modal
+          title="End session"
+          visible={isEndSessionModalVisibleEdit}
+          onCancel={() => setIsEndSessionModalVisibleEdit(false)}
+          footer={null}
+          // width={1150}
+          width="90vw" // Responsive width
+          style={{ maxWidth: "1150px" }} // Maximum width limit
+          bodyStyle={{ maxHeight: "80vh", overflowY: "auto" }} // Scrollable content
+        >
+          <ul className="nav nav-tabs nav-tabs-solid">
+          {/* {
+              settings?.prescription == 1 &&
+              <li className="nav-item">
+                <Link
+                  className={`nav-link ${activeTab === "medications" ? "active" : ""}`}
+                  onClick={() => setActiveTab("medications")}
+                  to="#"
+                >
+                  Medications
+                </Link>
+              </li>
+            } */}
+             <li className="nav-item">
+            <Link
+  className={`nav-link ${activeTab === "op" ? "active" : ""}`}
+  onClick={() => setActiveTab("op")}
+  to="#"
+>
+  OP
+</Link>
+            </li>
+            
+             <li className="nav-item">
+            <Link
+  className={`nav-link ${activeTab === "scan" ? "active" : ""}`}
+  onClick={() => setActiveTab("scan")}
+  to="#"
+>
+  Scan
+</Link>
+            </li>
+            
+             <li className="nav-item">
+            <Link
+  className={`nav-link ${activeTab === "investigation" ? "active" : ""}`}
+  onClick={() => setActiveTab("investigation")}
+  to="#"
+>
+  Investigation
+</Link>
+            </li>
+
+             <li className="nav-item">
+            <Link
+  className={`nav-link ${activeTab === "review" ? "active" : ""}`}
+  onClick={() => setActiveTab("review")}
+  to="#"
+>
+  Review
+</Link>
+            </li>
+
+              <li className="nav-item">
+            <Link
+  className={`nav-link ${activeTab === "laser" ? "active" : ""}`}
+  onClick={() => setActiveTab("laser")}
+  to="#"
+>
+  Laser
+</Link>
+            </li>
+            
+                <li className="nav-item">
+            <Link
+  className={`nav-link ${activeTab === "documents" ? "active" : ""}`}
+  onClick={() => {setActiveTab("documents"); console.log("invoic", invoiceData)}}
+  to="#"
+>
+  Documents
+</Link>
+            </li>
+
+            <li className="nav-item">
+            <Link
+  className={`nav-link ${activeTab === "Payments" ? "active" : ""}`}
+  onClick={() => setActiveTab("Payments")}
+  to="#"
+>
+  Payments
+</Link>
+            </li>
+
+
+
+
+            
+
+             {/*  <li className="nav-item">
+            <Link
+  className={`nav-link ${activeTab === "appointments" ? "active" : ""}`}
+  onClick={() => setActiveTab("appointments")}
+  to="#"
+>
+  Appointments
+</Link>
+            </li> */}
+            
+
+            {/* {
+              selectedAppointment?.doctor_specialization === "Dental" &&
+              <li className="nav-item">
+                <Link
+                  className={`nav-link ${activeTab === "operatings" ? "active" : ""}`}
+                  onClick={() => setActiveTab("operatings")}
+                  to="#"
+                >
+                  Operatings
+                </Link>
+              </li>
+            } */}
+          </ul>
+
+          <br />
+          
+           {/* {
+            (selectedAppointment?.status == 0 || selectedAppointment?.status == 1 || selectedAppointment?.status == 2) && ( */}
+              <div  className="d-flex justify-content-between align-items-center"  style={{ marginTop:"10px" }}>
+                   <h5>
+      Overall Grand Total:{" "}
+      <strong style={{color:"green"}}>₹ {calculateOverallGrandTotal().toFixed(2)}</strong>
+    </h5>
+       {/* Right side - Buttons */}
+      <div>
+                <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setIsEndSessionModalVisibleEdit(false)} style={{ marginRight: "10px" }}>
+                  Cancel
+                </button>
+                {/* <button
+                    type="button"
+                    className="btn btn-primary" onClick={handleEndSession}>
+                  End Session
+                </button> */}
+                   </div>
+              </div>
+            {/* )} */}
+            <br/>
+
+          {/* Content */}
+      {['op', 'scan', 'investigation', 'review', 'laser'].map(tab => (
+  activeTab === tab && (
+    <div className="start-appointment-set" key={tab}>
+      <div className="form-bg-title">
+        <h5>{tab.toUpperCase()} Services</h5>
+      </div>
+
+      <div className="row meditation-row">
+        <div className="col-md-12">
+
+          {(invoiceData?.services?.[tab] || []).length === 0 ? (
+            <p>No services in {tab}</p>
+          ) : (
+            invoiceData.services[tab].map((row) => (
+              <div
+                className="d-flex flex-wrap medication-wrap align-items-center"
+                key={row.id}
+              >
+                {/* Service Name */}
+                <div className="input-block input-block-new">
+                  <label className="form-label">Name</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={row.service_details?.service_name || "-"}
+                    readOnly
+                  />
+                </div>
+
+                {/* Quantity */}
+                <div className="input-block input-block-new">
+                  <label className="form-label">Qty</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={row.quantity}
+                    readOnly
+                  />
+                </div>
+
+                {/* Final Price */}
+                <div className="input-block input-block-new">
+                  <label className="form-label">Final Price</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={row.final_amount.toFixed(2)}
+                    readOnly
+                  />
+                </div>
+
+                {/* Remarks */}
+                <div className="input-block input-block-new">
+                  <label className="form-label">Remarks</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={row.remark || ""}
+                    readOnly
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+))}
+
+
+          {activeTab === "documents" && (
+  <div className="document-upload-container">
+    <div className="form-bg-title">
+      <h5>Upload Documents</h5>
+      <p className="text-muted">Supported formats: JPG, PNG (Max 10MB each)</p>
+    </div>
+
+    <div className="document-upload-area">
+      {/* Dropzone Area */}
+      <div 
+        className={`dropzone ${isDragging ? 'dragging' : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          handleFileDrop(e.dataTransfer.files);
+        }}
+      >
+        <CloudUploadIcon className="upload-icon" />
+        <p>Drag & drop files here or click to browse</p>
+        <input
+          type="file"
+          id="document-upload"
+          multiple
+          onChange={(e) => handleFileSelect(e.target.files)}
+          style={{ display: 'none' }}
+          accept=".jpg,.jpeg,.png,.pdf"
+        />
+        <button 
+          className="btn btn-primary mt-2"
+          onClick={() => document.getElementById('document-upload').click()}
+        >
+          Select Files
+        </button>
+      </div>
+
+      {/* Upload Progress */}
+      {uploadProgress > 0 && uploadProgress < 100 && (
+        <div className="upload-progress mt-4">
+          <div className="progress">
+            <div 
+              className="progress-bar progress-bar-striped progress-bar-animated" 
+              role="progressbar"
+              style={{ width: `${uploadProgress}%` }}
+            >
+              {uploadProgress}%
+            </div>
+          </div>
+          <p className="text-center mt-2">Uploading... Please wait</p>
+        </div>
+      )}
+
+      {/* Uploaded Files List */}
+    {uploadedFiles.length > 0 && (
+  <div className="uploaded-files mt-4">
+    <h6>Uploaded Documents</h6>
+    <div className="row">
+      {uploadedFiles.map((file, index) => (
+        <div key={index} className="col-md-4 mb-3">
+          <div className="card h-100 shadow-sm">
+            <div className="card-body p-2 d-flex flex-column">
+              {/* Top row: Date + Buttons */}
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <small className="text-muted">{file.created_at}</small>
+                <div>
+                  <button
+                    className="btn btn-sm btn-outline-primary me-1"
+                    onClick={() => handlePreview(file.url)}
+                  >
+                      <Eye size={16} />
+                  </button>
+                  <button
+                    className="btn btn-sm btn-outline-danger me-1"
+                    onClick={() => deleteFile(file)}
+                  >
+                   <Trash2 size={16} />
+                  </button>
+                   <button
+                    className="btn btn-sm btn-outline-secondary me-1"
+                    onClick={() => handlePrint(file.url)}
+                  >
+                    <PrinterIcon size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Image */}
+              <div className="flex-grow-1 d-flex align-items-center justify-content-center border rounded overflow-hidden">
+                <img
+                  src={file.url}
+                  alt={file.name}
+                  className="img-fluid"
+                  style={{ maxHeight: "200px", objectFit: "contain" }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
+    </div>
+  </div>
+)}
+
+
+ {activeTab === "payments" && (
+  <div className="container my-3" style={{ maxWidth: "650px" }}>
+  {/* Header Section */}
+  <div className="card shadow-sm mb-3">
+    <div className="card-body d-flex justify-content-between align-items-center">
+                            <h5>
+                              Service Details{" "}
+                            </h5>
+                            <div>
+                              {
+                                invoiceData &&
+                                <span className={`badge me-2 ${invoiceData?.payment_status == 0 ? "bg-danger" : invoiceData?.payment_status == 1 ? "bg-success" : invoiceData?.payment_status == 2 ? "bg-warning" : "bg-danger"}`} onClick={handleOpenPay}>
+                                  {invoiceData?.payment_status == 0 ? "Unpaid" : invoiceData?.payment_status == 1 ? "Paid" : invoiceData?.payment_status == 2 ? "Partial" : "UnPaid"}
+                                </span>
+                              }
+                              {
+                                invoiceData?.payment_status == 1 &&
+                                // <Link
+                                //                   // to={`/admin/doctor-invoice-report?id=${existingServices?.id}`} // Pass token as a query parameter
+                                //                   to={{
+                                //                     pathname: `/admin/doctor-invoice-report?id=${existingServices?.id}`,
+                                //                     state: { from: "appointment-list" }
+                                //                   }}
+                                //                   className="btn btn-warning more-item mb-0"  
+                                //                 ><PrinterIcon style={{ width: "16px", height: "16px" }}/></Link>
+                                  <Link
+                                  // to={{
+                                  //   pathname: `/admin/medical-invoice-report`,
+                                  //   state: { data: existingServices },
+                                  // }}
+                                   to={{
+                                                    pathname: `/admin/doctor-invoice-report`,
+                                                    state: { from: "appointment-list", data: existingServices }
+                                                  }}
+                                  className="btn btn-warning more-item mb-0"
+                                >
+                                  <PrinterIcon style={{ width: "16px", height: "16px" }} />
+                                </Link>
+  
+                              }
+  
+                              {/* <button className="btn btn-primary" onClick={handleOpenPay}>Pay Now</button> */}
+                            </div>
+                          </div>
+                           </div>
+                           {invoiceData && (
+        <div className="card mb-4">
+          <div className="card-body">
+            <h5 className="mb-3">Grand Summary</h5>
+            <table className="table" style={{ maxWidth: "80%" }}>
+              <tbody>
+                <tr>
+                  <td><strong>Subtotal:</strong></td>
+                  <td className="text-end">₹{invoiceData.consultation + invoiceData.medical_total}</td>
+                </tr>
+                <tr>
+                  <td><strong>Discount:</strong></td>
+                  <td className="text-end">
+                    ₹{invoiceData.discount}
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Grand Total:</strong></td>
+                  <td className="text-end" style={{ fontSize: "20px" }}>
+                    ₹{(invoiceData.final_charge ?? 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+        {/* Service Sections */}
+        <div className="card shadow-sm">
+    <div className="card-body">
+            <Tabs defaultActiveKey="op" type="card" className="mb-4">
+              {sectionTypes.map((type) => (
+                <TabPane tab={type.toUpperCase()} key={type}>
+                  {renderSection(invoiceData?.[type], type)}
+                </TabPane>
+              ))}
+            </Tabs>
+             </div>
+  </div>
+  </div>
+   
+
+ )}
+
+         {activeTab === "appointments" && (
+  <div className="appointment-form-container">
+    <h5 className="mb-3">Book Appointment</h5>
+    
+    <form onSubmit={handleAppointmentSubmit}>
+      <div className="form-group mb-3">
+        <label htmlFor="appointment-date">Appointment Date</label>
+        <input
+          type="date"
+          className="form-control"
+          id="appointment-date"
+          value={appointmentPrivateDate}
+          onChange={(e) => setAppointmentPrivateDate(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="form-group mb-3">
+        <label htmlFor="slot-select">Select Slot</label>
+        <select
+          className="form-control"
+          id="slot-select"
+          value={selectedPrivateSlot}
+          onChange={(e) => setSelectedPrivateSlot(e.target.value)}
+          required
+        >
+          <option value="">-- Select Slot --</option>
+          {privateSlotList.map((slot, index) => (
+            <option key={index} value={slot.from_time}>
+              {slot.from_time} - {slot.to_time}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="form-group mb-3">
+        <label htmlFor="appointment-remark">Remark</label>
+        <textarea
+          className="form-control"
+          id="appointment-remark"
+          rows="3"
+          value={remarkPrivate}
+          onChange={(e) => setRemarkPrivate(e.target.value)}
+          placeholder="Optional notes..."
+        />
+      </div>
+
+      {/* <button type="submit" className="btn btn-success">
+        Book Appointment
+      </button> */}
+    </form>
+    {
+                  selectedAppointment?.status == 3 &&
+                   <button type="submit" className="btn btn-primary mx-1">
+                  Update
+                </button>
+                }
+  </div>
+)}
+          {activeTab === "operatings" && (
+
+            <>
+              <ul className="nav nav-tabs nav-tabs-solid">
+                <li className="nav-item">
+                  <Link
+                    className={`nav-link ${activeSecondTab === "current_appointment" ? "active" : ""}`}
+                    onClick={() => setActiveSecondTab("current_appointment")}
+                    to="#"
+                  >
+                    Current Appointment
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className={`nav-link ${activeSecondTab === "history" ? "active" : ""}`}
+                    onClick={() => setActiveSecondTab("history")}
+                    to="#"
+                  >
+                    History
+                  </Link>
+                </li>
+              </ul>
+
+
+
+              {activeSecondTab === "current_appointment" && (
+                <>
+                  <div className="row">
+                    <div className="col-md-6 col-xl-6 col-sm-12">
+                      <div className="create-details-card">
+                        {
+                          toothDirections['Upper Left'] && toothDirections['Upper Left'].length > 0 ? (
+                            [...Array(Math.ceil(toothDirections['Upper Left'].length / 4))].map((_, rowIndex) => (
+                              <Row key={rowIndex} className="justify-content-center" style={{ marginBottom: '16px' }}> {/* Add vertical gap between rows */}
+                                {
+                                  toothDirections['Upper Left']
+                                    .slice(rowIndex * 4, (rowIndex + 1) * 4)
+                                    .map((dir, index) => (
+                                      <Col
+                                        key={index}
+                                        lg={6}
+                                        // className="d-flex justify-content-center"
+                                        style={{ paddingLeft: '8px', paddingRight: '8px' }} // Horizontal gap between columns
+                                        onClick={() => handleOpenModalTooth(dir)}
+                                      >
+                                        {(dir?.dental_chart_remark || dir?.dental_chart_description) ? (
+                                          <Tooltip
+                                            placement="top"
+                                            title={
+                                              <div>
+                                                <p style={{ margin: 0, fontWeight: 'bold' }}>Remark: {dir?.dental_chart_remark || 'No remark'}</p>
+                                                <p style={{ margin: 0 }}>Description: {dir?.dental_chart_description || 'No description'}</p>
+                                              </div>
+                                            }
+                                            overlayStyle={{ maxWidth: 300 }}
+                                          >
+                                            <div
+                                              className="create-details-card"
+                                              style={{
+                                                //   padding: '10px',
+                                                //   border: '1px solid #ddd',
+                                                //   borderRadius: '8px',
+                                                backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
+                                                //   textAlign: 'center',
+                                                //   height: 'auto',
+                                                //   width: '100%', // Ensures cards stretch to occupy space consistently
+                                                //   maxWidth: '200px', // Optional for consistent sizing
+                                                //   display: 'flex',
+                                                //   flexDirection: 'column',
+                                                //   justifyContent: 'space-between',
+                                                cursor: 'pointer',
+                                              }}
+                                            >
+                                              <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
+                                              {dir?.dental_chart_description && (
+                                                <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
+                                                  ? `${dir.dental_chart_description.substring(0, 6)}...`
+                                                  : ''}</p>
+                                              )}
+                                            </div>
+                                          </Tooltip>
+                                        ) : (
+
+                                          <div
+                                            className="create-details-card"
+                                            style={{
+                                              backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
+                                            }}
+                                          >
+                                            <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
+                                            {dir?.dental_chart_description && (
+                                              <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
+                                                ? `${dir.dental_chart_description.substring(0, 6)}...`
+                                                : ''}</p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </Col>
+                                    ))
+                                }
+                              </Row>
+                            ))
+                          ) : (
+                            <p>No data available for Upper Left.</p>
+                          )
+                        }
+                      </div>
+                    </div>
+
+
+                    <div className="col-md-6 col-xl-6 col-sm-12">
+                      <div className="create-details-card">
+                        {
+                          toothDirections['Upper Right'] && toothDirections['Upper Right'].length > 0 ? (
+                            [...Array(Math.ceil(toothDirections['Upper Right'].length / 4))].map((_, rowIndex) => (
+                              <Row key={rowIndex} className="justify-content-center" style={{ marginBottom: '16px' }}> {/* Add vertical gap between rows */}
+                                {
+                                  toothDirections['Upper Right']
+                                    .slice(rowIndex * 4, (rowIndex + 1) * 4)
+                                    .map((dir, index) => (
+                                      <Col
+                                        key={index}
+                                        lg={6}
+                                        // className="d-flex justify-content-center"
+                                        style={{ paddingLeft: '8px', paddingRight: '8px' }} // Horizontal gap between columns
+                                        onClick={() => handleOpenModalTooth(dir)}
+                                      >
+                                        {(dir?.dental_chart_remark || dir?.dental_chart_description) ? (
+                                          <Tooltip
+                                            placement="top"
+                                            title={
+                                              <div>
+                                                <p style={{ margin: 0, fontWeight: 'bold' }}>Remark: {dir?.dental_chart_remark || 'No remark'}</p>
+                                                <p style={{ margin: 0 }}>Description: {dir?.dental_chart_description || 'No description'}</p>
+                                              </div>
+                                            }
+                                            overlayStyle={{ maxWidth: 300 }}
+                                          >
+                                            <div
+                                              className="create-details-card"
+                                              style={{
+                                                backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
+                                              }}
+                                            >
+                                              <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
+                                              {dir?.dental_chart_description && (
+                                                <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
+                                                  ? `${dir.dental_chart_description.substring(0, 6)}...`
+                                                  : ''}</p>
+                                              )}
+                                            </div>
+                                          </Tooltip>
+                                        ) : (
+                                          <div
+                                            className="create-details-card"
+                                            style={{
+                                              backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
+                                            }}
+                                          >
+                                            <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
+                                            {dir?.dental_chart_description && (
+                                              <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
+                                                ? `${dir.dental_chart_description.substring(0, 6)}...`
+                                                : ''}</p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </Col>
+                                    ))
+                                }
+                              </Row>
+                            ))
+                          ) : (
+                            <p>No data available for Upper Right.</p>
+                          )
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+
+
+
+                  <div className="row">
+                    <div className="col-md-6 col-xl-6 col-sm-12">
+                      <div className="create-details-card">
+                        {
+                          toothDirections['Lower Left'] && toothDirections['Lower Left'].length > 0 ? (
+                            [...Array(Math.ceil(toothDirections['Lower Left'].length / 4))].map((_, rowIndex) => (
+                              <Row key={rowIndex} className="justify-content-center" style={{ marginBottom: '16px' }}> {/* Add vertical gap between rows */}
+                                {
+                                  toothDirections['Lower Left']
+                                    .slice(rowIndex * 4, (rowIndex + 1) * 4)
+                                    .map((dir, index) => (
+                                      <Col
+                                        key={index}
+                                        lg={6}
+                                        // className="d-flex justify-content-center"
+                                        style={{ paddingLeft: '8px', paddingRight: '8px' }} // Horizontal gap between columns
+                                        onClick={() => handleOpenModalTooth(dir)}
+                                      >
+                                        {(dir?.dental_chart_remark || dir?.dental_chart_description) ? (
+                                          <Tooltip
+                                            placement="top"
+                                            title={
+                                              <div>
+                                                <p style={{ margin: 0, fontWeight: 'bold' }}>Remark: {dir?.dental_chart_remark || 'No remark'}</p>
+                                                <p style={{ margin: 0 }}>Description: {dir?.dental_chart_description || 'No description'}</p>
+                                              </div>
+                                            }
+                                            overlayStyle={{ maxWidth: 300 }}
+                                          >
+                                            <div
+                                              className="create-details-card"
+                                              style={{
+                                                backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
+                                                cursor: 'pointer',
+                                              }}
+                                            >
+                                              <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
+                                              {dir?.dental_chart_description && (
+                                                <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
+                                                  ? `${dir.dental_chart_description.substring(0, 6)}...`
+                                                  : ''}</p>
+                                              )}
+                                            </div>
+                                          </Tooltip>
+                                        ) : (
+                                          <div
+                                            className="create-details-card"
+                                            style={{
+                                              //   padding: '10px',
+                                              //   border: '1px solid #ddd',
+                                              //   borderRadius: '8px',
+                                              backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
+                                              //   textAlign: 'center',
+                                              //   height: 'auto',
+                                              //   width: '100%', // Ensures cards stretch to occupy space consistently
+                                              //   maxWidth: '200px', // Optional for consistent sizing
+                                              //   display: 'flex',
+                                              //   flexDirection: 'column',
+                                              //   justifyContent: 'space-between',
+
+                                            }}
+                                          >
+                                            <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
+                                            {dir?.dental_chart_description && (
+                                              <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
+                                                ? `${dir.dental_chart_description.substring(0, 6)}...`
+                                                : ''}</p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </Col>
+                                    ))
+                                }
+                              </Row>
+                            ))
+                          ) : (
+                            <p>No data available for Lower Left.</p>
+                          )
+                        }
+                      </div>
+                    </div>
+
+                    <div className="col-md-6 col-xl-6 col-sm-12">
+                      <div className="create-details-card">
+                        {
+                          toothDirections['Lower Right'] && toothDirections['Lower Right'].length > 0 ? (
+                            [...Array(Math.ceil(toothDirections['Lower Right'].length / 4))].map((_, rowIndex) => (
+                              <Row key={rowIndex} className="justify-content-center" style={{ marginBottom: '16px' }}> {/* Add vertical gap between rows */}
+                                {
+                                  toothDirections['Lower Right']
+                                    .slice(rowIndex * 4, (rowIndex + 1) * 4)
+                                    .map((dir, index) => (
+                                      <Col
+                                        key={index}
+                                        lg={6}
+                                        // className="d-flex justify-content-center"
+                                        style={{ paddingLeft: '8px', paddingRight: '8px' }} // Horizontal gap between columns
+                                        onClick={() => handleOpenModalTooth(dir)}
+                                      >
+                                        {(dir?.dental_chart_remark || dir?.dental_chart_description) ? (
+                                          <Tooltip
+                                            placement="top"
+                                            title={
+                                              <div>
+                                                <p style={{ margin: 0, fontWeight: 'bold' }}>Remark: {dir?.dental_chart_remark || 'No remark'}</p>
+                                                <p style={{ margin: 0 }}>Description: {dir?.dental_chart_description || 'No description'}</p>
+                                              </div>
+                                            }
+                                            overlayStyle={{ maxWidth: 300 }}
+                                          >
+                                            <div
+                                              className="create-details-card"
+                                              style={{
+                                                backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
+                                              }}
+                                            >
+                                              <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
+                                              {dir?.dental_chart_description && (
+                                                <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
+                                                  ? `${dir.dental_chart_description.substring(0, 6)}...`
+                                                  : ''}</p>
+                                              )}
+                                            </div>
+                                          </Tooltip>
+                                        ) : (
+
+                                          <div
+                                            className="create-details-card"
+                                            style={{
+                                              //   padding: '10px',
+                                              //   border: '1px solid #ddd',
+                                              //   borderRadius: '8px',
+                                              backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
+                                              //   textAlign: 'center',
+                                              //   height: 'auto',
+                                              //   width: '100%', // Ensures cards stretch to occupy space consistently
+                                              //   maxWidth: '200px', // Optional for consistent sizing
+                                              //   display: 'flex',
+                                              //   flexDirection: 'column',
+                                              //   justifyContent: 'space-between',
+                                            }}
+                                          >
+                                            <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
+                                            {dir?.dental_chart_description && (
+                                              <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
+                                                ? `${dir.dental_chart_description.substring(0, 6)}...`
+                                                : ''}</p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </Col>
+                                    ))
+                                }
+                              </Row>
+                            ))
+                          ) : (
+                            <p>No data available for Lower Right.</p>
+                          )
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeSecondTab === "history" && (
+                <div className="card">
+                  <div className="card-body">
+                    <div className="table-reeeeeesponsive">
+                      <Table
+                        pagination={{
+                          total: toothHistory.length,
+                          pageSize: 10, // Limit to 2 rows per page
+                          showSizeChanger: false,
+                          onShowSizeChange: onShowSizeChange,
+                          itemRender: itemRender,
+                        }}
+                        style={{ overflowX: "auto" }}
+                        loading={loading}
+                        columns={columnsHistory}
+                        dataSource={toothHistory}
+                        rowKey={(record) => record.id}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+
+
+          )}
+        </Modal>
+
 
 
     </>

@@ -517,8 +517,6 @@ const handleRemarksChange = (rowId, remarks) => {
 };
 
 
-
-
    // Handle end session
  const handleEndSession = async () => {
   setLoading(true);
@@ -591,8 +589,6 @@ const handleRemarksChange = (rowId, remarks) => {
     setLoading(false);
   }
 };
-
-
 
   useEffect(() => {
     const sub = parseFloat(subTotal) || 0;
