@@ -527,6 +527,15 @@ const SidebarNav = () => {
                       </Link>
                     </li>
 }
+    <li>
+                      <Link to="/admin/ledger"
+                        className={
+                          pathname?.includes("Ledger") ? "active" : ""
+                        }>
+                        {" "}
+                        <i className="fe fe-users"></i>  <span>Ledger</span>
+                      </Link>
+                    </li>
 
                    
                  {/* <li>

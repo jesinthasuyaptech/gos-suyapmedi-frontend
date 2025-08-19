@@ -97,6 +97,7 @@ import medicalrecord from "./components/medicalrecord";
  import ultraCredentials from "./components/ultraAdminCredential/index.jsx";
 
  import pushNotification from "./components/pushNotification/index.jsx";
+ import ledger from "./components/ledger/index.jsx";
 
 const AppUniversal = function (props) {
   const [menu, setMenu] = useState(false);
@@ -204,7 +205,7 @@ console.log("jesi",isAuth);
           <Route path="/admin/doctor-list" exact component={Doctors} />
           <Route path="/admin/patient-list" exact component={Patients} />
           <Route path="/admin/reviews" exact component={Reviews} />
-          
+          <Route path="/admin/ledger" exact component={ledger} />
         
           <Route path="/admin/availabledaytime" exact component={availabledaytime} />
           <Route path="/admin/superultraadmin" component={superultraAdmin} />
