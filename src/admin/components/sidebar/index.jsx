@@ -330,7 +330,7 @@ const SidebarNav = () => {
                         <i className="fe fe-activity"></i>  <span>Patient Details</span>
                       </Link>
                     </li>
-                <li
+                {/* <li
                   className={
                     pathname?.includes("/admin/appointment-list")
                       ? "active"
@@ -340,7 +340,7 @@ const SidebarNav = () => {
                   <Link to="/admin/appointment-list">
                     <i className="fe fe-layout"></i> <span>Registration</span>
                   </Link>
-                </li>
+                </li> */}
                 {/* <li
                   className={
                     pathname?.includes("/admin/invoicelist")

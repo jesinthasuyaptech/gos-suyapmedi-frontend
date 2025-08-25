@@ -282,7 +282,7 @@ useEffect(() => {
           <div className="card-header d-flex justify-content-between align-items-center">
               <h4 className="card-title">Appointment List</h4>
               <Link
-    to="/admin/appointment-list"
+    to="/admin/patientdetails"
     className="btn btn-primary ms-auto"
   >
     View All

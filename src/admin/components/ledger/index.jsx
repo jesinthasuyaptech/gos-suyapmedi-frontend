@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import SidebarNav from "../sidebar";
 import { Table, Button, DatePicker, Select, Card, Row, Col, Modal } from "antd";
-import { Filter, initialSettingsApt } from "../../../client/components/common/filter";
 import { itemRender } from "../paginationfunction";
 import { Link } from "react-router-dom";
 import { var_api } from "../../../constant";
@@ -12,7 +11,8 @@ import moment from "moment";
 const { Option } = Select;
 
 const Ledger = () => {
-  const [data, setData] = useState([]);
+  const [slots, setSlots] = useState([]); // For slot filter options
+  const [invoiceData, setInvoiceData] = useState([]); // For table data
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -24,14 +24,15 @@ const Ledger = () => {
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const history = useHistory();
 
-  // Fetch GOS invoice data with default values
-  const fetchGosInvoice = async (slotId = "ALL", date = moment().format('YYYY-MM-DD')) => {
-    setInvoiceLoading(true);
+  // Fetch GOS invoice data for TABLE
+  const fetchGosInvoice = async (slotId = "ALL", date = moment().format('DD-MM-YYYY')) => {
+    setLoading(true);
     const token = localStorage.getItem("token");
+    const hospital_id = localStorage.getItem("hospital_id");
 
     try {
       const response = await fetch(
-        `${var_api}gos-invoice-billing/gos-invoice/${slotId}/${date}`,
+        `${var_api}gos-invoice-billing/gos-invoice/${hospital_id}/${slotId}/${date}`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -41,18 +42,55 @@ const Ledger = () => {
       );
 
       if (!response.ok) throw new Error("Failed to fetch invoice data");
+
       const result = await response.json();
-      setSelectedInvoice(result);
+
+      // Transform data for AntD Table
+      const transformed = result.map((item) => {
+        const appointment = item?.appointment || {};
+        const gos_invoice_billing = item?.gos_invoice_billing || {};
+        const customer_details = item?.customer_details || {};
+
+        // Collect services into comma-separated string
+        const serviceList = [
+          ...(gos_invoice_billing.services?.op || []),
+          ...(gos_invoice_billing.services?.scan || []),
+          ...(gos_invoice_billing.services?.investigation || []),
+          ...(gos_invoice_billing.services?.review || [])
+        ]
+          .map((s) => s?.service_name || "")
+          .filter(Boolean)
+          .join(", ");
+
+        return {
+          id: gos_invoice_billing.id || null,
+          appointment_id: appointment.appointment_id || null,
+          slot_id: appointment.slot_id || null,
+          date: appointment.appointment_day || "-",
+          token_no: appointment.token_no || "-",
+          patient_name: customer_details.patient_name || "Unknown",
+          total_amount: gos_invoice_billing.grand_total || 0,
+          service: serviceList || "-",
+          paymode: gos_invoice_billing.doctor_invoice_paymode?.map((p) => p.paymode_id).join(", ") || "N/A",
+          
+          // For modal
+          appointment: appointment,
+          gos_invoice_billing: gos_invoice_billing,
+          customer_details: customer_details
+        };
+      });
+
+      setInvoiceData(transformed);
+      setFilteredData(transformed); // Initially show all data
     } catch (error) {
       console.error("Error fetching GOS invoice:", error);
     } finally {
-      setInvoiceLoading(false);
+      setLoading(false);
     }
   };
 
-  // Fetch ledger data
-  const fetchData = async () => {
-    setLoading(true);
+  // Fetch slots for filter dropdown
+  const fetchSlots = async () => {
     const token = localStorage.getItem("token");
     const hospital_id = localStorage.getItem("hospital_id");
 
@@ -67,44 +105,29 @@ const Ledger = () => {
         }
       );
 
-      if (!response.ok) throw new Error("Failed to fetch ledger data");
+      if (!response.ok) throw new Error("Failed to fetch slot data");
       const result = await response.json();
-      setData(result || []);
-      
-      // Apply initial filters with default values
-      applyFilters(moment(), "ALL", result || []);
-      
-      // Fetch initial invoice data with default values
-      fetchGosInvoice("ALL", moment().format('YYYY-MM-DD'));
+      setSlots(result || []);
     } catch (error) {
-      console.error("Error fetching ledger data:", error);
-    } finally {
-      setLoading(false);
+      console.error("Error fetching slot data:", error);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchSlots();
+    fetchGosInvoice("ALL", moment().format('DD-MM-YYYY'));
   }, []);
 
   // Handle date filter
   const handleDateFilter = (date) => {
     setSelectedDate(date);
-    applyFilters(date, slotFilter, data);
-    
-    // Fetch new invoice data when date changes
-    if (date) {
-      fetchGosInvoice(slotFilter, date.format('YYYY-MM-DD'));
-    }
+    applyFilters(date, slotFilter, invoiceData);
   };
 
   // Handle slot filter
   const handleSlotFilter = (value) => {
     setSlotFilter(value);
-    applyFilters(selectedDate, value, data);
-    
-    // Fetch new invoice data when slot changes
-    fetchGosInvoice(value, selectedDate.format('YYYY-MM-DD'));
+    applyFilters(selectedDate, value, invoiceData);
   };
 
   // Apply filters to data
@@ -113,18 +136,13 @@ const Ledger = () => {
 
     // Apply date filter
     if (date) {
-      const selectedDateStart = moment(date).startOf("day");
-      const selectedDateEnd = moment(date).endOf("day");
-
-      filtered = filtered.filter((item) => {
-        const itemDate = moment(item.date);
-        return itemDate.isBetween(selectedDateStart, selectedDateEnd, null, "[]");
-      });
+      const selectedDateFormatted = date.format('DD-MM-YYYY');
+      filtered = filtered.filter((item) => item.date === selectedDateFormatted);
     }
 
     // Apply slot filter
     if (slot !== "ALL") {
-      filtered = filtered.filter((item) => item.slot === slot);
+      filtered = filtered.filter((item) => item.slot_id == slot);
     }
 
     setFilteredData(filtered);
@@ -135,18 +153,13 @@ const Ledger = () => {
     const today = moment();
     setSelectedDate(today);
     setSlotFilter("ALL");
-    applyFilters(today, "ALL", data);
-    fetchGosInvoice("ALL", today.format('YYYY-MM-DD'));
+    fetchGosInvoice("ALL", today.format('DD-MM-YYYY'));
   };
 
   // Handle view invoice
   const handleViewInvoice = (record) => {
-    if (record.appointment_id && record.slot_id && record.date) {
-      fetchGosInvoice(record.slot_id, record.date);
-      setInvoiceModalVisible(true);
-    } else {
-      console.error("Missing appointment data for invoice");
-    }
+    setSelectedInvoice(record);
+    setInvoiceModalVisible(true);
   };
 
   const columns = [
@@ -192,6 +205,10 @@ const Ledger = () => {
           4: "Net Banking",
           5: "Wallet",
         };
+        // Handle multiple paymodes (comma-separated)
+        if (text && text.includes(",")) {
+          return text.split(",").map(id => paymodes[id.trim()] || id.trim()).join(", ");
+        }
         return paymodes[text] || "N/A";
       },
       sorter: (a, b) => (a.paymode || "").localeCompare(b.paymode || ""),
@@ -216,53 +233,77 @@ const Ledger = () => {
   };
 
   // Render invoice details
-  const renderInvoiceDetails = () => {
-    if (!selectedInvoice) return null;
+  const renderInvoiceDetails = (invoiceRecord) => {
+    if (!invoiceRecord) return null;
 
-    const { appointment, gos_invoice_billing } = selectedInvoice;
+    const appointment = invoiceRecord?.appointment || {};
+    const gos_invoice_billing = invoiceRecord?.gos_invoice_billing || {};
+    const customer_details = invoiceRecord?.customer_details || {};
+
+    // Flatten services for the table
+    const flattenedServices = [
+      ...(gos_invoice_billing.services?.op || []),
+      ...(gos_invoice_billing.services?.scan || []),
+      ...(gos_invoice_billing.services?.investigation || []),
+      ...(gos_invoice_billing.services?.review || [])
+    ];
 
     return (
       <div>
-        <h3>Appointment Details</h3>
+         <h3>Payment Details</h3>
         <p>
-          <strong>Token No:</strong> {appointment.token_no}
+          <strong>Total Amount:</strong> ₹{gos_invoice_billing.grand_total || "0.00"}
         </p>
         <p>
-          <strong>Patient:</strong> {gos_invoice_billing.patient_name}
+          <strong>Paid Amount:</strong> ₹{gos_invoice_billing.paid_amount || "0.00"}
         </p>
         <p>
-          <strong>Appointment Date:</strong> {appointment.appointment_day}
-        </p>
-        <p>
-          <strong>Time:</strong> {appointment.appointment_time}
-        </p>
-
-        <h3>Services</h3>
-        <Table
-          dataSource={gos_invoice_billing.services}
-          pagination={false}
-          columns={[
-            { title: "Service", dataIndex: "service_name" },
-            { title: "Type", dataIndex: "service_type" },
-            {
-              title: "Price",
-              dataIndex: "price",
-              render: (text) => `₹${text}`,
-            },
-          ]}
-        />
-
-        <h3>Payment Details</h3>
-        <p>
-          <strong>Total Amount:</strong> ₹{gos_invoice_billing.total_amount}
+          <strong>Balance Amount:</strong> ₹{gos_invoice_billing.balance_amount || "0.00"}
         </p>
         <p>
           <strong>Payment Mode:</strong>{" "}
           {gos_invoice_billing.doctor_invoice_paymode &&
           gos_invoice_billing.doctor_invoice_paymode.length > 0
-            ? gos_invoice_billing.doctor_invoice_paymode[0].paymode_id
+            ? gos_invoice_billing.doctor_invoice_paymode.map(p => {
+                const paymodes = {1: "Cash", 2: "Card", 3: "UPI", 4: "Net Banking", 5: "Wallet"};
+                return paymodes[p.paymode_id] || p.paymode_id;
+              }).join(", ")
             : "N/A"}
         </p>
+
+        <h3>Services</h3>
+        {flattenedServices.length > 0 ? (
+          <Table
+            dataSource={flattenedServices}
+            pagination={false}
+            columns={[
+              { 
+                title: "Service", 
+                dataIndex: "service_name", 
+                key: "service_name",
+                render: (text) => text || "N/A"
+              },
+              { 
+                title: "Type", 
+                dataIndex: "service_type", 
+                key: "service_type",
+                render: (type) => {
+                  const types = {0: "OP", 1: "Scan", 2: "Investigation", 3: "Review"};
+                  return types[type] || "N/A";
+                }
+              },
+              {
+                title: "Price",
+                dataIndex: "final_amount",
+                key: "price",
+                render: (text) => `₹${text || "0.00"}`
+              },
+            ]}
+            rowKey={(record, index) => index}
+          />
+        ) : (
+          <p>No services found</p>
+        )}
       </div>
     );
   };
@@ -317,8 +358,8 @@ const Ledger = () => {
                       placeholder="Select Slot"
                     >
                       <Option value="ALL">All Slots</Option>
-                      {data.length > 0 ? (
-                        data.map((slot) => (
+                      {slots.length > 0 ? (
+                        slots.map((slot) => (
                           <Option key={slot.id} value={slot.id}>
                             {slot.from_time} - {slot.to_time}
                           </Option>
@@ -360,7 +401,7 @@ const Ledger = () => {
                       loading={loading}
                       columns={columns}
                       dataSource={filteredData}
-                      rowKey={(record) => record.id}
+                      rowKey={(record) => record.id || record.appointment_id}
                       scroll={{ x: 1000 }}
                     />
                   </div>
@@ -382,10 +423,10 @@ const Ledger = () => {
           ]}
           width={800}
         >
-          {invoiceLoading ? (
-            <div className="text-center">Loading invoice details...</div>
+          {selectedInvoice ? (
+            renderInvoiceDetails(selectedInvoice)
           ) : (
-            renderInvoiceDetails()
+            <div className="text-center">No invoice data available</div>
           )}
         </Modal>
       </div>

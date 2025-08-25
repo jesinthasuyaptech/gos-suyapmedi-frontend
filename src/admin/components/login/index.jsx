@@ -165,8 +165,8 @@ const Login = () => {
         const role = result.user?.roll;
   
         // if (role === "admin" || role === "superadmin" || role === "Employee") {
-          // localStorage.setItem("hospital_id", 31); //domo
-           localStorage.setItem("hospital_id", 18);
+          localStorage.setItem("hospital_id", 31); //domo
+          //  localStorage.setItem("hospital_id", 18);
           localStorage.setItem("token", result.user.token);
           localStorage.setItem("user_id", result.user.id);
           localStorage.setItem("user_email", result.user.email);

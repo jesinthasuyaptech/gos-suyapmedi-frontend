@@ -439,7 +439,7 @@ const services = [
         )}
         <div className="content container-fluid">
           <div className="d-flex justify-content-between mb-4">
-            <Link to="/admin/patient-details">
+            <Link to="/admin/patientdetails">
               <button className="btn btn-secondary">Back Home</button>
             </Link>
             <button className="btn btn-primary" onClick={downloadPDF}>

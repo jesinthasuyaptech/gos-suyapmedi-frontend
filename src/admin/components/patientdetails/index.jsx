@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import SidebarNav from "../sidebar";
-import { Table, Button, Modal, Form, Input, Radio, Upload, message, Checkbox, Row, Col, Switch, notification, Space } from "antd";
+import { Table, Button, Modal, Form, Input, Radio, Upload, message, Checkbox, Row, Col, Switch, notification, Space, Carousel } from "antd";
 import { Tabs } from 'antd';
 import { itemRender, onShowSizeChange } from "../paginationfunction";
 import { Link } from "react-router-dom";
@@ -18,7 +18,8 @@ import "../styles/Loader.css";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import axios from "axios";
 import Select from "react-select";
-import {PrinterIcon, Eye, Trash2} from 'lucide-react';
+import {PrinterIcon, Eye, Trash2, FileIcon} from 'lucide-react';
+import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 
 const Patientdetails = () => {
   const [data, setData] = useState([]);
@@ -109,7 +110,25 @@ const Patientdetails = () => {
   const totalAppointments = patientAptHistory ? patientAptHistory.length : 0;
 
   const totalAmount = patientAptHistory
-  ? patientAptHistory.reduce((sum, record) => sum + (parseFloat(record.bill_amount) || 0), 0)
+  ? patientAptHistory.reduce((sum, record) => sum + (parseFloat(record.grand_total) || 0), 0)
+  : 0;
+
+  // Paid Amount (paid_status = 1)
+const paidAmount = patientAptHistory
+  ? patientAptHistory.reduce(
+      (sum, record) =>
+        record.paid_status == 1 ? sum + (parseFloat(record.grand_total) || 0) : sum,
+      0
+    )
+  : 0;
+
+// Unpaid Amount (paid_status = 0)
+const unpaidAmount = patientAptHistory
+  ? patientAptHistory.reduce(
+      (sum, record) =>
+        record.paid_status == 0 ? sum + (parseFloat(record.grand_total) || 0) : sum,
+      0
+    )
   : 0;
 
   const finalAmount = PatientServicedetails.reduce(
@@ -430,18 +449,21 @@ const [s3Config, setS3Config] = useState({
   const scanTotals = calculateTabTotals('scan') || { subTotal: 0, discount: 0, grandTotal: 0 };
   const investigationTotals = calculateTabTotals('investigation') || { subTotal: 0, discount: 0, grandTotal: 0 };
   const reviewTotals = calculateTabTotals('review') || { subTotal: 0, discount: 0, grandTotal: 0 };
+  const laserTotals = calculateTabTotals('laser') || { subTotal: 0, discount: 0, grandTotal: 0 };
 
   // Convert all values to numbers and provide fallback
   const opDiscount = Number(opTotals.discount) || 0;
   const scanDiscount = Number(scanTotals.discount) || 0;
   const investigationDiscount = Number(investigationTotals.discount) || 0;
   const reviewDiscount = Number(reviewTotals.discount) || 0;
+  const laserDiscount = Number(laserTotals.discount) || 0;
 
-  const grandDiscount = opDiscount + scanDiscount + investigationDiscount + reviewDiscount;
+  const grandDiscount = opDiscount + scanDiscount + investigationDiscount + reviewDiscount + laserDiscount;
   const grandTotal = (Number(opTotals.subTotal) || 0) + 
                     (Number(scanTotals.subTotal) || 0) + 
                     (Number(investigationTotals.subTotal) || 0) + 
-                    (Number(reviewTotals.subTotal) || 0) - 
+                    (Number(reviewTotals.subTotal) || 0) +
+                    (Number(laserTotals.subTotal) || 0) - 
                     grandDiscount;
 console.log("grna", grandDiscount, opDiscount, scanDiscount,investigationDiscount,reviewDiscount );
   return {
@@ -464,6 +486,8 @@ console.log("grna", grandDiscount, opDiscount, scanDiscount,investigationDiscoun
     investigation_discount: investigationDiscount,
     review_total: Number(reviewTotals.subTotal) || 0,
     review_discount: reviewDiscount,
+    laser_total: Number(laserTotals.subTotal) || 0,
+    laser_discount: laserDiscount,
     grand_discount: grandDiscount,
     grand_total: Math.max(0, grandTotal) // Ensure total is never negative
   };
@@ -758,6 +782,24 @@ const processFiles = async (files) => {
   // await handleFileUpload(files);
 };
 
+const processFilesEdit = async (files) => {
+  setSelectedFiles(files);
+  await handleFileUpload(files);
+};
+
+
+const handleFileDropEdit = (files) => {
+  if (files.length > 0) {
+    processFilesEdit(Array.from(files));
+  }
+};
+
+ const handleFileSelectEdit = (files) => {
+  if (files.length > 0) {
+    processFilesEdit(Array.from(files));
+  }
+};
+
 const handleFileUpload = async (files) => {
   setLoading(true);
   const formData = new FormData();
@@ -784,7 +826,7 @@ const handleFileUpload = async (files) => {
 
 
  setUploadProgress(0);
-  await fetchUploadedFiles();
+  await fetchUploadedFiles(selectedAppointment?.id);
    
 
   } catch (error) {
@@ -1623,7 +1665,7 @@ const handleFormSubmit = async (values) => {
   
       const data = await response.json();
   
-      setPatientAptHistory(data || []);
+     setPatientAptHistory((data || []).reverse());
   
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -1648,7 +1690,8 @@ const handleFormSubmit = async (values) => {
   const handleOpenSeriveHistory = (reco) => {
     console.log("reco", reco);
     handleServiceTypesHistotry(reco?.id);
-    fetchUploadedFiles(reco?.id)
+    fetchUploadedFiles(reco?.id);
+    setSelectedAppointment(reco);
     setIsEndSessionModalVisibleEdit(true);
   };
   
@@ -1908,6 +1951,21 @@ const handleFormSubmit = async (values) => {
   const handleMakeAppointment = (record) => {
     setIsEndSessionModalVisible(true);
     setselectedPatient(record);
+  
+    setTabRows({
+      op: [createEmptyServiceRow(0)],
+      scan: [createEmptyServiceRow(1)],
+      investigation: [createEmptyServiceRow(2)],
+      review: [createEmptyServiceRow(3)],
+      laser: [createEmptyServiceRow(4)]
+    });
+    setTabDiscounts({
+     op: 0,
+      scan: 0,
+      investigation: 0,
+      review: 0,
+      laser: 0
+    });
   }
 
   const columnspatientHistory = [
@@ -2587,6 +2645,8 @@ const transformInvoiceRows = (servicesData) => {
         setInvoiceData(transformedData);
       setExistingServices(data);
 
+
+      console.log("inv", selectedAppointment, data);
       // If appointment status is 3, update tabRows from the API services
     if (selectedAppointment?.status === 3) {
       const newTabRows = transformInvoiceRows(data.services || {});
@@ -2791,9 +2851,10 @@ const transformInvoiceRows = (servicesData) => {
 
 useEffect(() => {
   if (selectedAppointment?.id) {
+    console.log("sss", selectedAppointment, selectedAppointment?.id);
     handleServiceTypesHistotry(selectedAppointment.id);
   }
-}, [activeTab, selectedAppointment]);
+}, [selectedAppointment]);
 
 
   return (
@@ -2953,9 +3014,6 @@ useEffect(() => {
     </button>
   </div>
 </Modal>
-
-
-
 
 <Modal
   title="Edit Patient Medical History"
@@ -3167,9 +3225,6 @@ useEffect(() => {
   </Form>
 </Modal>
 
-
-
-
  <Modal
       title={editData ? "Edit Patient" : "Add New Patient"}
       visible={isModalVisible}
@@ -3180,7 +3235,7 @@ useEffect(() => {
       {editData ? (
         // Edit Patient Form
         <>
-     {activeTab === "EditPatient" && (
+     {/* {activeTab === "EditPatient" && ( */}
   <Form
     form={form}
     onFinish={handleFormSubmit}
@@ -3304,7 +3359,7 @@ useEffect(() => {
       </div>
     </Form.Item>
   </Form>
-)}
+{/* )} */}
           
         </>
       ) : (
@@ -3428,8 +3483,6 @@ useEffect(() => {
       )}
     </Modal>
     
-
-
 
       {/* Modal for Add / Edit */}
       {/* <Modal
@@ -3736,7 +3789,7 @@ useEffect(() => {
           />
         </Form.Item>
       </Col>
-      <Col span={12}>
+      <Col span={12}> 
         <Form.Item
           label="Uncorrected OS"
           name="uncorrected_os"
@@ -4196,23 +4249,28 @@ useEffect(() => {
           </Form.Item>
       </Modal>
 
-
-
-
       <Modal
   title={
-    <div className="d-flex justify-content-between align-items-center w-100">
-      <span>Appointment History</span>
-      <span className="text-muted small" style={{ marginLeft: "-30px" }}>
-        Total Appointments: <strong>{totalAppointments}</strong> | 
-        Total Cost: <strong>{totalAmount.toFixed(2)}</strong>
-      </span>
+    <div className="d-flex justify-content-between align-items-end w-100">
+      {/* Left side - Title */}
+      <span>Registration History</span>
+
+      {/* Right side - Amounts */}
+      <div className="d-flex gap-3" style={{marginRight:"25px"}}>
+        <span>
+          Paid Amount: <strong className="text-success">₹ {paidAmount}</strong>
+        </span>
+        {/* <span>
+          Unpaid: <strong className="text-danger">₹ {unpaidAmount}</strong>
+        </span> */}
+      </div>
     </div>
   }
   visible={isOpenAptHistory}
   onCancel={() => setIsOpenAptHistory(false)}
   footer={null}
   width={1000}
+  closable={true} // keeps the X button
 >
   <div className="card">
     <div className="card-body">
@@ -4268,6 +4326,7 @@ useEffect(() => {
     </div>
   </div>
 </Modal>
+
       <Modal
   // title="Patient Details"
   visible={isOpenpatientdetails}
@@ -5457,8 +5516,6 @@ useEffect(() => {
                   </div>
                 </Modal>
 
-
-
                  <Modal
           title="End session"
           visible={isEndSessionModalVisibleEdit}
@@ -5589,7 +5646,7 @@ useEffect(() => {
               <div  className="d-flex justify-content-between align-items-center"  style={{ marginTop:"10px" }}>
                    <h5>
       Overall Grand Total:{" "}
-      <strong style={{color:"green"}}>₹ {calculateOverallGrandTotal().toFixed(2)}</strong>
+      <strong style={{color:"green"}}>₹ {invoiceData?.final_charge}</strong>
     </h5>
        {/* Right side - Buttons */}
       <div>
@@ -5620,10 +5677,10 @@ useEffect(() => {
       <div className="row meditation-row">
         <div className="col-md-12">
 
-          {(invoiceData?.services?.[tab] || []).length === 0 ? (
+          {(existingServices?.services?.[tab] || []).length === 0 ? (
             <p>No services in {tab}</p>
           ) : (
-            invoiceData.services[tab].map((row) => (
+            existingServices.services[tab].map((row) => (
               <div
                 className="d-flex flex-wrap medication-wrap align-items-center"
                 key={row.id}
@@ -5700,7 +5757,7 @@ useEffect(() => {
         onDrop={(e) => {
           e.preventDefault();
           setIsDragging(false);
-          handleFileDrop(e.dataTransfer.files);
+          handleFileDropEdit(e.dataTransfer.files);
         }}
       >
         <CloudUploadIcon className="upload-icon" />
@@ -5709,7 +5766,7 @@ useEffect(() => {
           type="file"
           id="document-upload"
           multiple
-          onChange={(e) => handleFileSelect(e.target.files)}
+          onChange={(e) => handleFileSelectEdit(e.target.files)}
           style={{ display: 'none' }}
           accept=".jpg,.jpeg,.png,.pdf"
         />
@@ -5793,9 +5850,10 @@ useEffect(() => {
 )}
 
 
- {activeTab === "payments" && (
+ {activeTab === "Payments" && (
   <div className="container my-3" style={{ maxWidth: "650px" }}>
   {/* Header Section */}
+      
   <div className="card shadow-sm mb-3">
     <div className="card-body d-flex justify-content-between align-items-center">
                             <h5>
@@ -5877,448 +5935,99 @@ useEffect(() => {
             </Tabs>
              </div>
   </div>
-  </div>
-   
 
- )}
+  </div>   
 
-         {activeTab === "appointments" && (
-  <div className="appointment-form-container">
-    <h5 className="mb-3">Book Appointment</h5>
-    
-    <form onSubmit={handleAppointmentSubmit}>
-      <div className="form-group mb-3">
-        <label htmlFor="appointment-date">Appointment Date</label>
-        <input
-          type="date"
-          className="form-control"
-          id="appointment-date"
-          value={appointmentPrivateDate}
-          onChange={(e) => setAppointmentPrivateDate(e.target.value)}
-          required
-        />
-      </div>
-
-      <div className="form-group mb-3">
-        <label htmlFor="slot-select">Select Slot</label>
-        <select
-          className="form-control"
-          id="slot-select"
-          value={selectedPrivateSlot}
-          onChange={(e) => setSelectedPrivateSlot(e.target.value)}
-          required
-        >
-          <option value="">-- Select Slot --</option>
-          {privateSlotList.map((slot, index) => (
-            <option key={index} value={slot.from_time}>
-              {slot.from_time} - {slot.to_time}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="form-group mb-3">
-        <label htmlFor="appointment-remark">Remark</label>
-        <textarea
-          className="form-control"
-          id="appointment-remark"
-          rows="3"
-          value={remarkPrivate}
-          onChange={(e) => setRemarkPrivate(e.target.value)}
-          placeholder="Optional notes..."
-        />
-      </div>
-
-      {/* <button type="submit" className="btn btn-success">
-        Book Appointment
-      </button> */}
-    </form>
-    {
-                  selectedAppointment?.status == 3 &&
-                   <button type="submit" className="btn btn-primary mx-1">
-                  Update
-                </button>
-                }
-  </div>
-)}
-          {activeTab === "operatings" && (
-
-            <>
-              <ul className="nav nav-tabs nav-tabs-solid">
-                <li className="nav-item">
-                  <Link
-                    className={`nav-link ${activeSecondTab === "current_appointment" ? "active" : ""}`}
-                    onClick={() => setActiveSecondTab("current_appointment")}
-                    to="#"
-                  >
-                    Current Appointment
-                  </Link>
-                </li>
-                <li className="nav-item">
-                  <Link
-                    className={`nav-link ${activeSecondTab === "history" ? "active" : ""}`}
-                    onClick={() => setActiveSecondTab("history")}
-                    to="#"
-                  >
-                    History
-                  </Link>
-                </li>
-              </ul>
-
-
-
-              {activeSecondTab === "current_appointment" && (
-                <>
-                  <div className="row">
-                    <div className="col-md-6 col-xl-6 col-sm-12">
-                      <div className="create-details-card">
-                        {
-                          toothDirections['Upper Left'] && toothDirections['Upper Left'].length > 0 ? (
-                            [...Array(Math.ceil(toothDirections['Upper Left'].length / 4))].map((_, rowIndex) => (
-                              <Row key={rowIndex} className="justify-content-center" style={{ marginBottom: '16px' }}> {/* Add vertical gap between rows */}
-                                {
-                                  toothDirections['Upper Left']
-                                    .slice(rowIndex * 4, (rowIndex + 1) * 4)
-                                    .map((dir, index) => (
-                                      <Col
-                                        key={index}
-                                        lg={6}
-                                        // className="d-flex justify-content-center"
-                                        style={{ paddingLeft: '8px', paddingRight: '8px' }} // Horizontal gap between columns
-                                        onClick={() => handleOpenModalTooth(dir)}
-                                      >
-                                        {(dir?.dental_chart_remark || dir?.dental_chart_description) ? (
-                                          <Tooltip
-                                            placement="top"
-                                            title={
-                                              <div>
-                                                <p style={{ margin: 0, fontWeight: 'bold' }}>Remark: {dir?.dental_chart_remark || 'No remark'}</p>
-                                                <p style={{ margin: 0 }}>Description: {dir?.dental_chart_description || 'No description'}</p>
-                                              </div>
-                                            }
-                                            overlayStyle={{ maxWidth: 300 }}
-                                          >
-                                            <div
-                                              className="create-details-card"
-                                              style={{
-                                                //   padding: '10px',
-                                                //   border: '1px solid #ddd',
-                                                //   borderRadius: '8px',
-                                                backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
-                                                //   textAlign: 'center',
-                                                //   height: 'auto',
-                                                //   width: '100%', // Ensures cards stretch to occupy space consistently
-                                                //   maxWidth: '200px', // Optional for consistent sizing
-                                                //   display: 'flex',
-                                                //   flexDirection: 'column',
-                                                //   justifyContent: 'space-between',
-                                                cursor: 'pointer',
-                                              }}
-                                            >
-                                              <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
-                                              {dir?.dental_chart_description && (
-                                                <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
-                                                  ? `${dir.dental_chart_description.substring(0, 6)}...`
-                                                  : ''}</p>
-                                              )}
-                                            </div>
-                                          </Tooltip>
-                                        ) : (
-
-                                          <div
-                                            className="create-details-card"
-                                            style={{
-                                              backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
-                                            }}
-                                          >
-                                            <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
-                                            {dir?.dental_chart_description && (
-                                              <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
-                                                ? `${dir.dental_chart_description.substring(0, 6)}...`
-                                                : ''}</p>
-                                            )}
-                                          </div>
-                                        )}
-                                      </Col>
-                                    ))
-                                }
-                              </Row>
-                            ))
-                          ) : (
-                            <p>No data available for Upper Left.</p>
-                          )
-                        }
-                      </div>
-                    </div>
-
-
-                    <div className="col-md-6 col-xl-6 col-sm-12">
-                      <div className="create-details-card">
-                        {
-                          toothDirections['Upper Right'] && toothDirections['Upper Right'].length > 0 ? (
-                            [...Array(Math.ceil(toothDirections['Upper Right'].length / 4))].map((_, rowIndex) => (
-                              <Row key={rowIndex} className="justify-content-center" style={{ marginBottom: '16px' }}> {/* Add vertical gap between rows */}
-                                {
-                                  toothDirections['Upper Right']
-                                    .slice(rowIndex * 4, (rowIndex + 1) * 4)
-                                    .map((dir, index) => (
-                                      <Col
-                                        key={index}
-                                        lg={6}
-                                        // className="d-flex justify-content-center"
-                                        style={{ paddingLeft: '8px', paddingRight: '8px' }} // Horizontal gap between columns
-                                        onClick={() => handleOpenModalTooth(dir)}
-                                      >
-                                        {(dir?.dental_chart_remark || dir?.dental_chart_description) ? (
-                                          <Tooltip
-                                            placement="top"
-                                            title={
-                                              <div>
-                                                <p style={{ margin: 0, fontWeight: 'bold' }}>Remark: {dir?.dental_chart_remark || 'No remark'}</p>
-                                                <p style={{ margin: 0 }}>Description: {dir?.dental_chart_description || 'No description'}</p>
-                                              </div>
-                                            }
-                                            overlayStyle={{ maxWidth: 300 }}
-                                          >
-                                            <div
-                                              className="create-details-card"
-                                              style={{
-                                                backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
-                                              }}
-                                            >
-                                              <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
-                                              {dir?.dental_chart_description && (
-                                                <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
-                                                  ? `${dir.dental_chart_description.substring(0, 6)}...`
-                                                  : ''}</p>
-                                              )}
-                                            </div>
-                                          </Tooltip>
-                                        ) : (
-                                          <div
-                                            className="create-details-card"
-                                            style={{
-                                              backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
-                                            }}
-                                          >
-                                            <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
-                                            {dir?.dental_chart_description && (
-                                              <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
-                                                ? `${dir.dental_chart_description.substring(0, 6)}...`
-                                                : ''}</p>
-                                            )}
-                                          </div>
-                                        )}
-                                      </Col>
-                                    ))
-                                }
-                              </Row>
-                            ))
-                          ) : (
-                            <p>No data available for Upper Right.</p>
-                          )
-                        }
-                      </div>
-                    </div>
-                  </div>
-
-
-
-
-                  <div className="row">
-                    <div className="col-md-6 col-xl-6 col-sm-12">
-                      <div className="create-details-card">
-                        {
-                          toothDirections['Lower Left'] && toothDirections['Lower Left'].length > 0 ? (
-                            [...Array(Math.ceil(toothDirections['Lower Left'].length / 4))].map((_, rowIndex) => (
-                              <Row key={rowIndex} className="justify-content-center" style={{ marginBottom: '16px' }}> {/* Add vertical gap between rows */}
-                                {
-                                  toothDirections['Lower Left']
-                                    .slice(rowIndex * 4, (rowIndex + 1) * 4)
-                                    .map((dir, index) => (
-                                      <Col
-                                        key={index}
-                                        lg={6}
-                                        // className="d-flex justify-content-center"
-                                        style={{ paddingLeft: '8px', paddingRight: '8px' }} // Horizontal gap between columns
-                                        onClick={() => handleOpenModalTooth(dir)}
-                                      >
-                                        {(dir?.dental_chart_remark || dir?.dental_chart_description) ? (
-                                          <Tooltip
-                                            placement="top"
-                                            title={
-                                              <div>
-                                                <p style={{ margin: 0, fontWeight: 'bold' }}>Remark: {dir?.dental_chart_remark || 'No remark'}</p>
-                                                <p style={{ margin: 0 }}>Description: {dir?.dental_chart_description || 'No description'}</p>
-                                              </div>
-                                            }
-                                            overlayStyle={{ maxWidth: 300 }}
-                                          >
-                                            <div
-                                              className="create-details-card"
-                                              style={{
-                                                backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
-                                                cursor: 'pointer',
-                                              }}
-                                            >
-                                              <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
-                                              {dir?.dental_chart_description && (
-                                                <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
-                                                  ? `${dir.dental_chart_description.substring(0, 6)}...`
-                                                  : ''}</p>
-                                              )}
-                                            </div>
-                                          </Tooltip>
-                                        ) : (
-                                          <div
-                                            className="create-details-card"
-                                            style={{
-                                              //   padding: '10px',
-                                              //   border: '1px solid #ddd',
-                                              //   borderRadius: '8px',
-                                              backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
-                                              //   textAlign: 'center',
-                                              //   height: 'auto',
-                                              //   width: '100%', // Ensures cards stretch to occupy space consistently
-                                              //   maxWidth: '200px', // Optional for consistent sizing
-                                              //   display: 'flex',
-                                              //   flexDirection: 'column',
-                                              //   justifyContent: 'space-between',
-
-                                            }}
-                                          >
-                                            <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
-                                            {dir?.dental_chart_description && (
-                                              <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
-                                                ? `${dir.dental_chart_description.substring(0, 6)}...`
-                                                : ''}</p>
-                                            )}
-                                          </div>
-                                        )}
-                                      </Col>
-                                    ))
-                                }
-                              </Row>
-                            ))
-                          ) : (
-                            <p>No data available for Lower Left.</p>
-                          )
-                        }
-                      </div>
-                    </div>
-
-                    <div className="col-md-6 col-xl-6 col-sm-12">
-                      <div className="create-details-card">
-                        {
-                          toothDirections['Lower Right'] && toothDirections['Lower Right'].length > 0 ? (
-                            [...Array(Math.ceil(toothDirections['Lower Right'].length / 4))].map((_, rowIndex) => (
-                              <Row key={rowIndex} className="justify-content-center" style={{ marginBottom: '16px' }}> {/* Add vertical gap between rows */}
-                                {
-                                  toothDirections['Lower Right']
-                                    .slice(rowIndex * 4, (rowIndex + 1) * 4)
-                                    .map((dir, index) => (
-                                      <Col
-                                        key={index}
-                                        lg={6}
-                                        // className="d-flex justify-content-center"
-                                        style={{ paddingLeft: '8px', paddingRight: '8px' }} // Horizontal gap between columns
-                                        onClick={() => handleOpenModalTooth(dir)}
-                                      >
-                                        {(dir?.dental_chart_remark || dir?.dental_chart_description) ? (
-                                          <Tooltip
-                                            placement="top"
-                                            title={
-                                              <div>
-                                                <p style={{ margin: 0, fontWeight: 'bold' }}>Remark: {dir?.dental_chart_remark || 'No remark'}</p>
-                                                <p style={{ margin: 0 }}>Description: {dir?.dental_chart_description || 'No description'}</p>
-                                              </div>
-                                            }
-                                            overlayStyle={{ maxWidth: 300 }}
-                                          >
-                                            <div
-                                              className="create-details-card"
-                                              style={{
-                                                backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
-                                              }}
-                                            >
-                                              <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
-                                              {dir?.dental_chart_description && (
-                                                <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
-                                                  ? `${dir.dental_chart_description.substring(0, 6)}...`
-                                                  : ''}</p>
-                                              )}
-                                            </div>
-                                          </Tooltip>
-                                        ) : (
-
-                                          <div
-                                            className="create-details-card"
-                                            style={{
-                                              //   padding: '10px',
-                                              //   border: '1px solid #ddd',
-                                              //   borderRadius: '8px',
-                                              backgroundColor: dir?.dental_chart_id && dir.dental_chart_id > 0 ? '#d1f7d6' : '#f8f9fa',
-                                              //   textAlign: 'center',
-                                              //   height: 'auto',
-                                              //   width: '100%', // Ensures cards stretch to occupy space consistently
-                                              //   maxWidth: '200px', // Optional for consistent sizing
-                                              //   display: 'flex',
-                                              //   flexDirection: 'column',
-                                              //   justifyContent: 'space-between',
-                                            }}
-                                          >
-                                            <p style={{ margin: 0, fontWeight: 'bold' }}>FDI-{dir?.fdi}</p>
-                                            {dir?.dental_chart_description && (
-                                              <p style={{ margin: 0, wordBreak: 'break-word' }}> {dir?.dental_chart_description
-                                                ? `${dir.dental_chart_description.substring(0, 6)}...`
-                                                : ''}</p>
-                                            )}
-                                          </div>
-                                        )}
-                                      </Col>
-                                    ))
-                                }
-                              </Row>
-                            ))
-                          ) : (
-                            <p>No data available for Lower Right.</p>
-                          )
-                        }
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {activeSecondTab === "history" && (
-                <div className="card">
-                  <div className="card-body">
-                    <div className="table-reeeeeesponsive">
-                      <Table
-                        pagination={{
-                          total: toothHistory.length,
-                          pageSize: 10, // Limit to 2 rows per page
-                          showSizeChanger: false,
-                          onShowSizeChange: onShowSizeChange,
-                          itemRender: itemRender,
-                        }}
-                        style={{ overflowX: "auto" }}
-                        loading={loading}
-                        columns={columnsHistory}
-                        dataSource={toothHistory}
-                        rowKey={(record) => record.id}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-
-
-          )}
+ )}   
         </Modal>
 
 
+         <Modal
+          title="Document Preview"
+          visible={previewModalVisible}
+          onCancel={() => setPreviewModalVisible(false)}
+          footer={null}
+          width="80vw"
+          style={{ maxWidth: '900px' }}
+        >
+          <div className="document-preview-container">
+            {previewFiles.length > 0 ? (
+              <>
+                <div style={{ position: 'relative' }}>
+                  <Carousel
+                    key={`carousel-${currentPreviewIndex}`}
+                    ref={carouselRef}
+                    afterChange={current => setCurrentPreviewIndex(current)}
+                    initialSlide={currentPreviewIndex}
+                    dots={false}
+                    infinite={false}
+                  >
+                    {previewFiles.map((file, idx) => (
+                      <div key={idx} className="preview-item">
+                        <img 
+                          src={file.url} 
+                          alt={file.name}
+                          style={{ maxHeight: '70vh', width: '100%', objectFit: 'contain' }}
+                        />
+                      </div>
+                    ))}
+                  </Carousel>
+                  
+                  {/* Navigation Arrows */}
+                  {currentPreviewIndex > 0 && (
+                    <button 
+                      className="carousel-nav-button left"
+                      onClick={() => carouselRef.current.prev()}
+                    >
+                      <LeftOutlined />
+                    </button>
+                  )}
+                  
+                  {currentPreviewIndex < previewFiles.length - 1 && (
+                    <button 
+                      className="carousel-nav-button right"
+                      onClick={() => carouselRef.current.next()}
+                    >
+                      <RightOutlined />
+                    </button>
+                  )}
+                </div>
+                
+                <div className="preview-footer mt-3 d-flex align-items-center">
+                  <span
+                    className={`carousel-arrow ${currentPreviewIndex === 0 ? 'disabled' : ''}`}
+                    onClick={() => currentPreviewIndex !== 0 && carouselRef.current.prev()}
+                    style={{ cursor: currentPreviewIndex === 0 ? 'not-allowed' : 'pointer', fontSize: '1.5rem' }}
+                    title="Previous"
+                  >
+                    <svg width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M11 1L3 8l8 7" stroke="#666" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                    </svg>
+                  </span>
+                  <span className="mx-3">
+                    {currentPreviewIndex + 1} of {previewFiles.length}
+                  </span>
+                  <span
+                    className={`carousel-arrow ${currentPreviewIndex === previewFiles.length - 1 ? 'disabled' : ''}`}
+                    onClick={() => currentPreviewIndex !== previewFiles.length - 1 && carouselRef.current.next()}
+                    style={{ cursor: currentPreviewIndex === previewFiles.length - 1 ? 'not-allowed' : 'pointer', fontSize: '1.5rem' }}
+                    title="Next"
+                  >
+                    <svg width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M5 1l8 7-8 7" stroke="#666" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                    </svg>
+                  </span>
+                  <span className="file-name ml-3">{previewFiles[currentPreviewIndex]?.name}</span>
+                </div>
+              </>
+            ) : (
+              <div className="unsupported-preview">
+                <FileIcon size={48} />
+                <p>Preview not available for this file type</p>
+              </div>
+            )}
+          </div>
+        </Modal>
 
     </>
   );
