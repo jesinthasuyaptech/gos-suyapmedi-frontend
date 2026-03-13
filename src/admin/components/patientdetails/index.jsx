@@ -34,7 +34,7 @@ const Patientdetails = () => {
   const [imageName, setImageName] = useState("");
   const [file, setFile] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10); 
+  const [pageSize, setPageSize] = useState(30); 
   const [form] = Form.useForm();
   // const [activeTab, setActiveTab] = useState("EditPatient");
   const location = useLocation();
@@ -239,6 +239,8 @@ const handleAddNewRow = () => {
     [activeTab]: [newRow, ...(prev[activeTab] || [])] // Prepend new row
   }));
 };
+
+
 const hospital_id = localStorage.getItem("hospital_id");
 const [s3Config, setS3Config] = useState({
   bucketName: '',
@@ -343,6 +345,17 @@ const [s3Config, setS3Config] = useState({
           if (!response.ok) throw new Error("Failed to fetch data");
           const result = await response.json();
           console.log("tt", result[0]);
+
+
+//           const currentTime = new Date(); // current time
+// const matchingSlot = result.find(slot => {
+//   const slotStart = new Date(slot.startTime); // example field
+//   const slotEnd = new Date(slot.endTime); // example field
+//   return currentTime >= slotStart && currentTime <= slotEnd;
+// });
+
+// console.log("matchingSlot",matchingSlot);
+
           setDayTimings(result[0]);
           setLoading(false);
           // Set the first doctor as selected
@@ -429,8 +442,32 @@ const [s3Config, setS3Config] = useState({
       }
     };
 
+    const handleAddNewRowUpdate = (tab) => {
+  setExistingServices(prev => {
+    const newRow = {
+      id: Date.now(),       // unique ID for React key
+      service_type_id: null,
+      service_details: null, // 👈 ensures dropdown shows
+      quantity: 1,
+      final_amount: 0,
+      remark: "",
+      isNew: true   
+    };
+
+    return {
+      ...prev,
+      services: {
+        ...prev.services,
+        [tab]: [...(prev.services[tab] || []), newRow] // append new row
+      }
+    };
+  });
+};
+
+
 
      const prepareAppointmentData = (appt) => {
+
   const allServices = Object.entries(tabRows).flatMap(([tab, rows]) => 
     rows
    .filter(row => row.service_type_id != null && row.service_type_id !== '') // Filter out null/empty
@@ -465,7 +502,7 @@ const [s3Config, setS3Config] = useState({
                     (Number(reviewTotals.subTotal) || 0) +
                     (Number(laserTotals.subTotal) || 0) - 
                     grandDiscount;
-console.log("grna", grandDiscount, opDiscount, scanDiscount,investigationDiscount,reviewDiscount );
+console.log("grna", grandDiscount, opDiscount, scanDiscount,investigationDiscount,reviewDiscount, dayTimings );
   return {
     hospital_id: hospital_id,
     patient_id:  selectedPatient?.id,
@@ -475,7 +512,7 @@ console.log("grna", grandDiscount, opDiscount, scanDiscount,investigationDiscoun
     payment_status: 0,
     status: 3,
     apt_start_time: `${dayTimings.from_time}:00`,
-  apt_end_time: new Date().toLocaleTimeString('en-GB', { hour12: false }), // "21:11:57"
+    apt_end_time: new Date().toLocaleTimeString('en-GB', { hour12: false }), // "21:11:57"
     amount: Math.max(0, grandTotal), // Ensure amount is never negative
     gosServices: allServices,
     op_total: Number(opTotals.subTotal) || 0,
@@ -690,6 +727,57 @@ const getCurrentRows = () => {
         </div>
       )}
     </div>
+  );
+};
+
+
+const renderServiceDropdownUpdate = (row, tab, idx) => {
+  const services = getCurrentTabServices();
+  const currentRows = getCurrentRows();
+
+  const selectedServiceIds = currentRows
+    .filter(r => r.id !== row.id) // exclude current row
+    .map(r => r.service_type_id)
+    .filter(Boolean);
+
+  const options = services
+    ?.filter(service => !selectedServiceIds.includes(service.id))
+    ?.map(service => ({
+      value: service.id,
+      label: `${service.service_name || service.name || 'Unnamed Service'} (₹${service.price})`,
+      service, // attach full service object
+    }));
+
+ const handleSelect = (selectedOption) => {
+  if (!selectedOption) return;
+  const selectedService = selectedOption.service;
+
+  // Update in existingServices state
+  setExistingServices((prev) => {
+    const updated = { ...prev };
+    updated.services[tab] = updated.services[tab].map((r) =>
+      r.id === row.id
+        ? {
+            ...r,
+            service_type_id: selectedService.id,
+            service_details: selectedService,
+            quantity: 1,
+            final_amount: selectedService.price,
+          }
+        : r
+    );
+    return updated;
+  });
+};
+
+
+  return (
+    <Select
+      placeholder="Select Service"
+      options={options}
+      value={options?.find(option => option.value === row.service_type_id)}
+      onChange={handleSelect}
+    />
   );
 };
 
@@ -1108,6 +1196,57 @@ const handleDobChange = (date, dateString) => {
     console.error("Error updating techstaff:", err);
   }
 };
+
+const handleSaveRow = async (tabKey, row) => {
+  console.log("tabKey",tabKey);
+  setExistingServices(prev => {
+    const updated = prev.services[tabKey].map(r =>
+      r.id === row.id ? { ...row, isNew: false } : r
+    );
+    return {
+      ...prev,
+      services: {
+        ...prev.services,
+        [tabKey]: updated
+      }
+    };
+  }); 
+  try {
+    const payload = {
+      invoice_billing_id: invoiceData.id,
+      service_type_id: row.service_type_id,
+      service_type: getServiceTypeForTab(tabKey),
+      unit_price: row.unit_price,
+      quantity: row.quantity,
+      total_amount: row.final_amount * row.quantity,
+      discount: 0,
+      final_amount: row.final_amount,
+      remark: row.remark || ""
+    };
+
+    const response = await fetch(`${var_api}gos-invoice-billing/addnew-details`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: localStorage.getItem("token")
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      notification.success({ message: "Service saved successfully" });
+      await handleServiceTypesHistotry(selectedAppointment?.id); // refresh after save
+    } else {
+      notification.error({ message: result.error || "Failed to save service" });
+    }
+  } catch (error) {
+    console.error(error);
+    notification.error({ message: "Something went wrong!" });
+  }
+};
+
 
 const handleCsvUpload = async () => {
   setLoading(true);
@@ -1720,6 +1859,29 @@ const handleFormSubmit = async (values) => {
     setIsModalVisible(false);
   };
 
+
+    const handleDeletePaymode = async (deleteformData) => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(`${var_api}invoicePaymode/delete`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token,
+          },
+          body: JSON.stringify(deleteformData), // Pass the payload here
+        });
+        handleServiceTypesHistotry(selectedAppointment?.id);
+  
+        if (!response.ok) throw new Error("Error deleting record");
+      } catch (error) {
+        notification.error({
+          message: "Delete Failed",
+          description: "There was an error while deleting the record.",
+        });
+      }
+    };
+
   const handleDelete = async () => {
     setLoading(true);
     const token = localStorage.getItem("token");
@@ -2254,7 +2416,7 @@ const handleFormSubmit = async (values) => {
             }));
           console.log("delete", deleteformData);
           if (deleteformData.length > 0) {
-            await handleDelete(deleteformData);
+            await handleDeletePaymode(deleteformData);
           }
           handleServiceTypesHistotry(selectedAppointment?.id);
           setIsPayModalVisible(false);
@@ -2560,7 +2722,8 @@ const transformInvoiceRows = (servicesData) => {
     op: mapItemsToRows(servicesData.op || [], 0),
     scan: mapItemsToRows(servicesData.scan || [], 1),
     investigation: mapItemsToRows(servicesData.investigation || [], 2),
-    review: mapItemsToRows(servicesData.review || [], 3)
+    review: mapItemsToRows(servicesData.review || [], 3),
+    laser: mapItemsToRows(servicesData.laser || [], 4)
   };
 };
 
@@ -2572,7 +2735,7 @@ const transformInvoiceRows = (servicesData) => {
     id: apiData.id,
     appointment_id: apiData.appointment_id,
     consultation: apiData.op_total || 0,
-    medical_total: (apiData.scan_total || 0) + (apiData.investigation_total || 0) + (apiData.review_total || 0),
+    medical_total: (apiData.scan_total || 0) + (apiData.investigation_total || 0) + (apiData.review_total || 0) +  + (apiData.laser_total || 0),
     discount: apiData.grand_discount || 0,
     final_charge: apiData.grand_total || 0,
     payment_status : apiData.paid_status,
@@ -2617,6 +2780,17 @@ const transformInvoiceRows = (servicesData) => {
       total: (apiData.review_total || 0) - (apiData.review_discount || 0),
       items: apiData.services?.review?.map(item => ({
         name: item.service_details?.service_name || 'Review Service',
+        qty: item.quantity || 1,
+        amount: item.final_amount || item.total_amount || 0,
+        remark: item.remark
+      })) || []
+    },
+     laser: {
+      subtotal: apiData.laser_total || 0,
+      discount: apiData.laser_discount || 0,
+      total: (apiData.laser_total || 0) - (apiData.laser_discount || 0),
+      items: apiData.services?.laser?.map(item => ({
+        name: item.service_details?.service_name || 'laser Service',
         qty: item.quantity || 1,
         amount: item.final_amount || item.total_amount || 0,
         remark: item.remark
@@ -5674,68 +5848,97 @@ useEffect(() => {
         <h5>{tab.toUpperCase()} Services</h5>
       </div>
 
+      {/* Add new row button */}
+<div className="d-flex justify-content-end align-items-end mb-4">
+                    <Link to="#" className="add-medical more-item mb-0"  
+                     onClick={() => handleAddNewRowUpdate(tab)}
+>
+                      Add New
+                    </Link>
+                    </div>
+
+
       <div className="row meditation-row">
         <div className="col-md-12">
 
           {(existingServices?.services?.[tab] || []).length === 0 ? (
-            <p>No services in {tab}</p>
-          ) : (
-            existingServices.services[tab].map((row) => (
-              <div
-                className="d-flex flex-wrap medication-wrap align-items-center"
-                key={row.id}
-              >
-                {/* Service Name */}
-                <div className="input-block input-block-new">
-                  <label className="form-label">Name</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={row.service_details?.service_name || "-"}
-                    readOnly
-                  />
-                </div>
+  <p>No services in {tab}</p>
+) : (
+ existingServices.services[tab].map((row, idx) => {
+  const isNewRow = !row.service_details?.id;
 
-                {/* Quantity */}
-                <div className="input-block input-block-new">
-                  <label className="form-label">Qty</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={row.quantity}
-                    readOnly
-                  />
-                </div>
+  return (
+    <div className="d-flex flex-wrap medication-wrap align-items-center" key={row.id}>
+      {/* Service Name */}
+      <div className="input-block input-block-new">
+        <label className="form-label">Name</label>
+        {isNewRow && !row.service_details ? (
+          renderServiceDropdownUpdate(row, tab, idx) // show dropdown until selection
+        ) : (
+          <input
+            type="text"
+            className="form-control"
+            value={row.service_details?.service_name || "-"}
+            readOnly
+          />
+        )}
+      </div>
 
-                {/* Final Price */}
-                <div className="input-block input-block-new">
-                  <label className="form-label">Final Price</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={row.final_amount.toFixed(2)}
-                    readOnly
-                  />
-                </div>
+      {/* Quantity */}
+      <div className="input-block input-block-new">
+        <label className="form-label">Qty</label>
+        <input
+          type="number"
+          className="form-control"
+          value={row.quantity}
+          readOnly
+        />
+      </div>
 
-                {/* Remarks */}
-                <div className="input-block input-block-new">
-                  <label className="form-label">Remarks</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={row.remark || ""}
-                    readOnly
-                  />
-                </div>
-              </div>
-            ))
-          )}
+      {/* Final Price */}
+      <div className="input-block input-block-new">
+        <label className="form-label">Final Price</label>
+        <input
+          type="number"
+          className="form-control"
+          value={row.final_amount?.toFixed(2) || "0.00"}
+          readOnly
+        />
+      </div>
+
+      {/* Remarks */}
+      <div className="input-block input-block-new">
+        <label className="form-label">Remarks</label>
+        <input
+          type="text"
+          className="form-control"
+          value={row.remark || ""}
+          readOnly
+        />
+      </div>
+
+      {/* Save button only for new rows */}
+      { row.isNew && row.service_details && (
+        <button
+          type="button"
+          className="btn btn-success btn-sm"
+          onClick={() => handleSaveRow(tab, row)}
+        >
+          Save
+        </button>
+      )}
+    </div>
+  );
+})
+
+)}
+
         </div>
       </div>
     </div>
   )
 ))}
+
 
 
           {activeTab === "documents" && (
